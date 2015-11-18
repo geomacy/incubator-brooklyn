@@ -228,7 +228,7 @@
         <module>usage/all</module>
         <module>usage/archetypes/quickstart</module>
         <module>usage/camp</module>
-        <module>usage/cli</module>
+        <module>usage/server-cli</module>
         <module>usage/dist</module>
         <module>usage/jsgui</module>
         <module>usage/launcher</module>

@@ -1,4 +1,4 @@
-Brooklyn CLI
+Brooklyn Server CLI
 ============
 
 This is the Command Line Interface that you can use to interact with Brooklyn.
