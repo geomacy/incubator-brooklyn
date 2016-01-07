@@ -1,0 +1,5 @@
+name: rcluster
+id: rcl
+location: vagrantbyon
+services:
+- type: riak-cluster

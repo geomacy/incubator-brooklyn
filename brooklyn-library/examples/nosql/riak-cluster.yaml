@@ -1,0 +1,131 @@
+brooklyn.catalog:
+  version: 0.1
+  items:
+
+  - id: riak-node
+    name: Riak Node
+    item:
+      type: brooklyn.entity.basic.VanillaSoftwareProcess
+
+      provisioning.properties:
+        osFamily: ubuntu
+
+      brooklyn.config:
+        riak.pb.port: 8087
+        riak.web.port: 8098
+        riak.leader.election.port: 5323
+        is.first.node: false
+
+      shell.env:
+        RIAK_PB_PORT: $brooklyn:config("riak.pb.port")
+        RIAK_WEB_PORT: $brooklyn:config("riak.web.port")
+        RIAK_LEADER_ELECTION_PORT: $brooklyn:config("riak.leader.election.port")
+        LOCAL_HOST_ADDRESS: $brooklyn:attributeWhenReady("host.name")
+        IS_FIRST_NODE: $brooklyn:config("is.first.node")
+        FIRST_NODE_NAME: $brooklyn:component("first-node").attributeWhenReady("cluster.seed.name")
+
+      brooklyn.enrichers:
+
+      - type: org.apache.brooklyn.enricher.stock.Transformer
+        brooklyn.config:
+          uniqueTag: bdp-node-name-generator
+          enricher.sourceSensor: $brooklyn:sensor("host.name")
+          enricher.targetSensor: $brooklyn:sensor("cluster.seed.name")
+          enricher.targetValue:
+            $brooklyn:formatString:
+            - "%s%s"
+            - "riak@"
+            - $brooklyn:attributeWhenReady("host.name")
+
+
+      install.command: |
+        echo configuring file limits
+        echo "fs.file-max = 65536" | sudo tee --append /etc/sysctl.conf > /dev/null
+        sudo sysctl -p
+
+        echo "ubuntu soft nofile 65536" | sudo tee --append /etc/security/limits.conf > /dev/null
+        echo "ubuntu hard nofile 65536" | sudo tee --append /etc/security/limits.conf > /dev/null
+        echo "riak soft nofile 65536" | sudo tee --append /etc/security/limits.conf > /dev/null
+        echo "riak hard nofile 65536" | sudo tee --append /etc/security/limits.conf > /dev/null
+        echo "root soft nofile 65536" | sudo tee --append /etc/security/limits.conf > /dev/null
+        echo "root hard nofile 65536" | sudo tee --append /etc/security/limits.conf > /dev/null
+
+        echo "ubuntu soft nofile 65536" | sudo tee --append /etc/security/limits.d/riak.conf > /dev/null
+        echo "ubuntu hard nofile 65536" | sudo tee --append /etc/security/limits.d/riak.conf > /dev/null
+        echo "riak soft nofile 65536" | sudo tee --append /etc/security/limits.d/riak.conf > /dev/null
+        echo "riak hard nofile 65536" | sudo tee --append /etc/security/limits.d/riak.conf > /dev/null
+        echo "root soft nofile 65536" | sudo tee --append /etc/security/limits.d/riak.conf > /dev/null
+        echo "root hard nofile 65536" | sudo tee --append /etc/security/limits.d/riak.conf > /dev/null
+
+        echo "session    required   pam_limits.so" | sudo tee --append /etc/pam.d/common-session > /dev/null
+        echo "session    required   pam_limits.so" | sudo tee --append /etc/pam.d/common-session-noninteractive > /dev/null
+
+        echo "ulimit -n 65536" | sudo tee --append /etc/default/riak > /dev/null
+
+        echo getting riak repository details
+        curl -s https://packagecloud.io/install/repositories/basho/riak/script.deb.sh | sudo bash
+
+        echo installing riak
+        sudo apt-get install riak
+        echo done installing
+
+      customize.command: |
+        # Configure listeners
+        sudo sed -i "s/listener.protobuf.internal = 127.0.0.1:8087/listener.protobuf.internal = 0.0.0.0:${RIAK_PB_PORT}/g" /etc/riak/riak.conf
+        sudo sed -i "s/listener.http.internal = 127.0.0.1:8098/listener.http.internal = 0.0.0.0:${RIAK_WEB_PORT}/g" /etc/riak/riak.conf
+
+        # Configure leader latch
+        sudo sed -i "s/## listener.leader_latch.internal = 127.0.0.1:5323/listener.leader_latch.internal = 0.0.0.0:${RIAK_LEADER_ELECTION_PORT}/g" /etc/riak/riak.conf
+
+        # Set node name from default
+        sudo sed -i "s/nodename = riak@127.0.0.1/nodename = riak@${LOCAL_HOST_ADDRESS}/g" /etc/riak/riak.conf
+
+
+      launch.command: |
+        echo "Starting Riak"
+        sudo riak start
+        echo "Riak started"
+
+        if [ $IS_FIRST_NODE == "false" ] ; then
+            # Join cluster
+            echo "Staging cluster join request"
+            sudo riak-admin cluster join $FIRST_NODE_NAME
+            echo "Planning cluster"
+            sudo riak-admin cluster plan
+            echo "Committing cluster"
+            sudo riak-admin cluster commit
+        fi
+
+      checkRunning.command: |
+        sudo riak-admin status
+
+      stop.command: |
+        sudo riak stop
+
+
+
+  - id: riak-cluster
+    name: Riak Cluster
+    item:
+      type: org.apache.brooklyn.entity.group.DynamicCluster
+
+      brooklyn.config:
+        cluster.initial.size: 2
+
+      firstMemberSpec:
+        $brooklyn:entitySpec:
+          id: first-node
+          type: riak-node
+          name: Riak Core Node
+          brooklyn.config:
+            is.first.node: true
+
+      memberSpec:
+        $brooklyn:entitySpec:
+          type: riak-node
+          name: Riak Node
+          brooklyn.config:
+            is.first.node: false
+            launch.latch: $brooklyn:component("first-node").attributeWhenReady("service.isUp")
+
+
