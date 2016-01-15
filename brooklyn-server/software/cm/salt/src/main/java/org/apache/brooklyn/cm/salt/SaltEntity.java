@@ -28,16 +28,13 @@ import org.apache.brooklyn.entity.software.base.SoftwareProcess;
 import org.apache.brooklyn.util.core.flags.SetFromFlag;
 
 @ImplementedBy(SaltEntityImpl.class)
-@Catalog(name="SaltSsh", description="The salt-ssh entity")
+@Catalog(name="SaltEntity", description="Software managed by Salt CM")
 public interface SaltEntity extends SoftwareProcess {
 
     @SetFromFlag("version")
     ConfigKey<String> SUGGESTED_VERSION = ConfigKeys.newConfigKeyWithDefault(
             BrooklynConfigKeys.SUGGESTED_VERSION, "stable");
 
-    @SetFromFlag("user")
-    ConfigKey<String> SALTSSH_USER = ConfigKeys.newStringConfigKey(
-            "salt.ssh.user", "The user that runs the salt-ssh tool",
-            "root");
+
 
 }

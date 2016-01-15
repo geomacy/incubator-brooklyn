@@ -36,7 +36,7 @@ import com.google.common.annotations.Beta;
 @Beta
 public interface SaltConfig {
 
-    public static enum SaltMode {
+    enum SaltMode {
         /** Master entity */
         MASTER, 
         /** Minion entity */
@@ -52,8 +52,11 @@ public interface SaltConfig {
     @SetFromFlag("formulas")
     public static final MapConfigKey<String> SALT_FORMULAS = new MapConfigKey<String>(String.class, "brooklyn.salt.formulaUrls",
             "Map of Salt formula URLs");
+
+    @SetFromFlag("runList")
     public static final SetConfigKey<String> SALT_SSH_RUN_LIST = new SetConfigKey<String>(String.class, "brooklyn.salt.ssh.runList", 
             "Set of SaltSsh commands to run");
+
     public static final MapConfigKey<Object> SALT_SSH_LAUNCH_ATTRIBUTES = new MapConfigKey<Object>(Object.class, "brooklyn.salt.ssh.launch.attributes", "TODO");
 
 }

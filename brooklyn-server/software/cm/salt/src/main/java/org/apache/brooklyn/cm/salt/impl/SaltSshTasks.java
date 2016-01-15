@@ -34,14 +34,22 @@ public class SaltSshTasks {
         // Utility class
     }
     
-    public static final TaskFactory<?> installSaltSsh(boolean force) {
+    public static final TaskFactory<?> installSalt(boolean force) {
         // TODO: ignore force?
         List<String> commands = MutableList.<String>builder()
-            .add(BashCommands.ifExecutableElse0("apt-get", BashCommands.chain(
-                BashCommands.sudo("add-apt-repository -y ppa:saltstack/salt"))))
-            .add(BashCommands.installPackage(MutableMap.of("yum", "salt-ssh", "apt", "salt-ssh"), null))
+            .add(BashCommands.commandToDownloadUrlAs("https://bootstrap.saltstack.com", "install_salt.sh"))
+            .add(BashCommands.sudo("sh install_salt.sh"))
             .build();
-        return SshEffectorTasks.ssh(commands).summary("install salt-ssh");
+        return SshEffectorTasks.ssh(commands).summary("install salt");
+    }
+
+    public static final TaskFactory<?> configureForMasterlessOperation(boolean force) {
+        // TODO: ignore force?
+        List<String> commands = MutableList.<String>builder()
+            .add(BashCommands.installPackage("sed")) // hardly likely to be necessary but just in case...
+            .add(BashCommands.sudo("sed -i '/^#file_client/a file_client: local' /etc/salt/minion"))
+            .build();
+        return SshEffectorTasks.ssh(commands).summary("configure masterless");
     }
 
     public static final TaskFactory<?> installSaltFormulas(final Map<String, Object> formulas, boolean force) {

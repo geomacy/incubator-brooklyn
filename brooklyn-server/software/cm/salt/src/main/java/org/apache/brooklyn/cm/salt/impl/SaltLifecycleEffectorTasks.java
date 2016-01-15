@@ -75,7 +75,8 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
             .getConfig(SaltConfig.SALT_FORMULAS))
             .getAllConfig();
         DynamicTasks.queue(
-            SaltSshTasks.installSaltSsh(false),
+            SaltSshTasks.installSalt(false),
+            SaltSshTasks.configureForMasterlessOperation(false),
             SaltSshTasks.installSaltFormulas(formulas, false));
         
         // TODO: actually installing service
