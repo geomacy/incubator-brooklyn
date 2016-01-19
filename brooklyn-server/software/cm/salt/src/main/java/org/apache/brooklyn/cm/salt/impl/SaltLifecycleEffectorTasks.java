@@ -30,6 +30,7 @@ import org.apache.brooklyn.util.core.config.ConfigBag;
 import org.apache.brooklyn.util.core.task.DynamicTasks;
 import org.apache.brooklyn.util.core.task.TaskBuilder;
 import org.apache.brooklyn.util.exceptions.FatalConfigurationRuntimeException;
+import org.apache.brooklyn.util.ssh.BashCommands;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -98,6 +99,8 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
             }
             DynamicTasks.queue(formulaTasks.build());
         }
+
+        DynamicTasks.queue(SaltSshTasks.applyState(false));
 
     }
 

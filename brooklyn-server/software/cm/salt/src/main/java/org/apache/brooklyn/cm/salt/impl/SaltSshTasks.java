@@ -129,4 +129,8 @@ public class SaltSshTasks {
         return SshEffectorTasks.ssh(commands).summary("create top.sls file");
 
     }
+
+    public static TaskAdaptable applyState(boolean force) {
+        return SshEffectorTasks.ssh(sudo("salt-call --local state.apply")).summary("salt state.apply").newTask();
+    }
 }
