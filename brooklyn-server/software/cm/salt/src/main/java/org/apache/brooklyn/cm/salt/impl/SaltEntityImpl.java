@@ -26,8 +26,11 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.annotations.Beta;
 
+import java.util.Map;
+import java.util.Set;
+
 @Beta
-public class SaltEntityImpl extends EffectorStartableImpl implements SaltEntity {
+public class SaltEntityImpl extends EffectorStartableImpl implements SaltEntity, SaltConfig {
     private static final Logger LOG = LoggerFactory.getLogger(SaltEntityImpl.class);
 
     public SaltEntityImpl() {
@@ -37,7 +40,19 @@ public class SaltEntityImpl extends EffectorStartableImpl implements SaltEntity 
     @Override
     public void init() {
         super.init();
-        
+
+        final Set<? extends String> runList = getConfig(SaltConfig.SALT_RUN_LIST);
+        LOG.info("Run list size is {}", runList.size());
+        for (String state : runList) {
+            LOG.info("Runlist state: {} ", state);
+        }
+
+        final Map<String, String> formulas = getConfig(SaltConfig.SALT_FORMULAS);
+        LOG.info("Formulas size: {}", formulas.size());
+        for (String formula : formulas.keySet()) {
+            LOG.info("Formula configured: {} -> {}", formula, formulas.get(formula));
+        }
+
         SaltConfig.SaltMode mode = getConfig(SaltConfig.SALT_MODE);
         LOG.info("Initialize SaltStack {} mode", mode.name());
         new SaltLifecycleEffectorTasks().attachLifecycleEffectors(this);

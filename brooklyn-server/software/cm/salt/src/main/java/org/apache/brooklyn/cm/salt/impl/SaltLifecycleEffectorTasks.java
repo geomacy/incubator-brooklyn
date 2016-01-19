@@ -19,6 +19,7 @@
 package org.apache.brooklyn.cm.salt.impl;
 
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.brooklyn.api.entity.Entity;
 import org.apache.brooklyn.api.location.MachineLocation;
@@ -27,6 +28,7 @@ import org.apache.brooklyn.entity.software.base.SoftwareProcess;
 import org.apache.brooklyn.entity.software.base.lifecycle.MachineLifecycleEffectorTasks;
 import org.apache.brooklyn.util.core.config.ConfigBag;
 import org.apache.brooklyn.util.core.task.DynamicTasks;
+import org.apache.brooklyn.util.core.task.TaskBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -64,22 +66,33 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
 
     protected static SaltMode detectSaltMode(Entity entity) {
         SaltMode mode = entity.getConfig(SaltConfig.SALT_MODE);
-        Preconditions.checkNotNull(mode, "Required confg " + SaltConfig.SALT_MODE + " not provided for entity: " + entity);
+        Preconditions.checkNotNull(mode, "Required config " + SaltConfig.SALT_MODE + " not provided for entity: " + entity);
         return mode;
     }
 
     protected void startWithSshAsync() {
-        LOG.debug("");
-        
+
+        final Set<? extends String> runList = entity().getConfig(SaltConfig.SALT_RUN_LIST);
+
         Map<String, Object> formulas = ConfigBag.newInstance(entity()
             .getConfig(SaltConfig.SALT_FORMULAS))
             .getAllConfig();
+
         DynamicTasks.queue(
             SaltSshTasks.installSalt(false),
             SaltSshTasks.configureForMasterlessOperation(false),
-            SaltSshTasks.installSaltFormulas(formulas, false));
-        
-        // TODO: actually installing service
+            SaltSshTasks.installTopFile(runList, false));
+
+        if (formulas.size() > 0) {
+            DynamicTasks.queue(SaltSshTasks.enableFileRoots(false));
+
+            final TaskBuilder<Object> formulaTasks = TaskBuilder.builder().displayName("installing formulas");
+            for (String formula : formulas.keySet()) {
+                formulaTasks.add(SaltSshTasks.installSaltFormula(formula, formulas.get(formula), false).newTask());
+            }
+            DynamicTasks.queue(formulaTasks.build());
+        }
+
     }
 
     protected void postStartCustom() {

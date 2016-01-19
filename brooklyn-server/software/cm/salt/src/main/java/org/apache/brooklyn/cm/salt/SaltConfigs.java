@@ -40,23 +40,23 @@ public class SaltConfigs {
 
     public static void addToRunList(EntitySpec<?> entity, String...states) {
         for (String state : states) {
-            entity.configure(SaltConfig.SALT_SSH_RUN_LIST, SetModifications.addItem(state));
+            entity.configure(SaltConfig.SALT_RUN_LIST, SetModifications.addItem(state));
         }
     }
 
     public static void addToRunList(EntityInternal entity, String...states) {
         for (String state : states) {
-            entity.config().set(SaltConfig.SALT_SSH_RUN_LIST, SetModifications.addItem(state));
+            entity.config().set(SaltConfig.SALT_RUN_LIST, SetModifications.addItem(state));
         }
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public static void addLaunchAttributes(EntitySpec<?> entity, Map<? extends Object,? extends Object> attributesMap) {
+    public static void addLaunchAttributes(EntitySpec<?> entity, Map<?,?> attributesMap) {
         entity.configure(SaltConfig.SALT_SSH_LAUNCH_ATTRIBUTES, MapModifications.add((Map)attributesMap));
     }
     
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public static void addLaunchAttributes(EntityInternal entity, Map<? extends Object,? extends Object> attributesMap) {
+    public static void addLaunchAttributes(EntityInternal entity, Map<?,?> attributesMap) {
         entity.config().set(SaltConfig.SALT_SSH_LAUNCH_ATTRIBUTES, MapModifications.add((Map)attributesMap));
     }
 

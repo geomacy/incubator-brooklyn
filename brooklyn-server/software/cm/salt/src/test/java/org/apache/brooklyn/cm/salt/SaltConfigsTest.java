@@ -24,8 +24,6 @@ import java.util.Set;
 import org.testng.Assert;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.Test;
-import org.apache.brooklyn.cm.salt.SaltConfig;
-import org.apache.brooklyn.cm.salt.SaltConfigs;
 import org.apache.brooklyn.core.entity.Entities;
 import org.apache.brooklyn.core.test.entity.TestApplication;
 
@@ -48,7 +46,7 @@ public class SaltConfigsTest {
     public void testAddToRunList() {
         TestApplication app = TestApplication.Factory.newManagedInstanceForTests();
         SaltConfigs.addToRunList(app, "a", "b");
-        Set<? extends String> runs = app.getConfig(SaltConfig.SALT_SSH_RUN_LIST);
+        Set<? extends String> runs = app.getConfig(SaltConfig.SALT_RUN_LIST);
         Assert.assertEquals(runs, ImmutableSet.of("a", "b"));
     }
 

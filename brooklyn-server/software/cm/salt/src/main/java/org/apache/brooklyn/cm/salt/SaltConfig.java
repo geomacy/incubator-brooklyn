@@ -18,8 +18,8 @@
  */
 package org.apache.brooklyn.cm.salt;
 
-import org.apache.brooklyn.api.mgmt.TaskAdaptable;
-import org.apache.brooklyn.api.mgmt.TaskFactory;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.apache.brooklyn.config.ConfigKey;
 import org.apache.brooklyn.core.config.ConfigKeys;
 import org.apache.brooklyn.core.config.MapConfigKey;
@@ -43,20 +43,20 @@ public interface SaltConfig {
         MINION,
         /** Masterless entity using salt-ssh */
         MASTERLESS
-    };
+    }
 
     @SetFromFlag("salt.mode")
-    public static final ConfigKey<SaltMode> SALT_MODE = ConfigKeys.newConfigKey(SaltMode.class, "brooklyn.salt.mode",
+    ConfigKey<SaltMode> SALT_MODE = ConfigKeys.newConfigKey(SaltMode.class, "brooklyn.salt.mode",
             "SaltStack execution mode (master/minion/masterless)", SaltMode.MASTERLESS);
 
     @SetFromFlag("formulas")
-    public static final MapConfigKey<String> SALT_FORMULAS = new MapConfigKey<String>(String.class, "brooklyn.salt.formulaUrls",
-            "Map of Salt formula URLs");
+    MapConfigKey<String> SALT_FORMULAS = new MapConfigKey<>(String.class, "brooklyn.salt.formulaUrls",
+            "Map of Salt formula URLs", ImmutableMap.<String,String>of());
 
     @SetFromFlag("runList")
-    public static final SetConfigKey<String> SALT_SSH_RUN_LIST = new SetConfigKey<String>(String.class, "brooklyn.salt.ssh.runList", 
-            "Set of SaltSsh commands to run");
+    SetConfigKey<String> SALT_RUN_LIST = new SetConfigKey<>(String.class, "brooklyn.salt.runList",
+            "Set of Salt states to apply", ImmutableSet.<String>of());
 
-    public static final MapConfigKey<Object> SALT_SSH_LAUNCH_ATTRIBUTES = new MapConfigKey<Object>(Object.class, "brooklyn.salt.ssh.launch.attributes", "TODO");
+    MapConfigKey<Object> SALT_SSH_LAUNCH_ATTRIBUTES = new MapConfigKey<>(Object.class, "brooklyn.salt.ssh.launch.attributes", "TODO");
 
 }

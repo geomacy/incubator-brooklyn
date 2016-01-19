@@ -20,12 +20,19 @@ package org.apache.brooklyn.cm.salt.impl;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.brooklyn.api.mgmt.TaskFactory;
 import org.apache.brooklyn.core.effector.ssh.SshEffectorTasks;
 import org.apache.brooklyn.util.collections.MutableList;
 import org.apache.brooklyn.util.collections.MutableMap;
 import org.apache.brooklyn.util.ssh.BashCommands;
+import org.apache.brooklyn.util.text.Strings;
+import org.apache.felix.framework.util.ImmutableList;
+
+import static org.apache.brooklyn.util.ssh.BashCommands.pipeTextTo;
+import static org.apache.brooklyn.util.ssh.BashCommands.pipeTextToFile;
+import static org.apache.brooklyn.util.ssh.BashCommands.sudo;
 
 
 public class SaltSshTasks {
@@ -33,27 +40,63 @@ public class SaltSshTasks {
     private SaltSshTasks() {
         // Utility class
     }
-    
-    public static final TaskFactory<?> installSalt(boolean force) {
+
+    public static TaskFactory<?> installSalt(boolean force) {
         // TODO: ignore force?
         List<String> commands = MutableList.<String>builder()
             .add(BashCommands.commandToDownloadUrlAs("https://bootstrap.saltstack.com", "install_salt.sh"))
-            .add(BashCommands.sudo("sh install_salt.sh"))
+            .add(sudo("sh install_salt.sh"))
             .build();
         return SshEffectorTasks.ssh(commands).summary("install salt");
     }
 
-    public static final TaskFactory<?> configureForMasterlessOperation(boolean force) {
+    public static TaskFactory<?> configureForMasterlessOperation(boolean force) {
         // TODO: ignore force?
         List<String> commands = MutableList.<String>builder()
             .add(BashCommands.installPackage("sed")) // hardly likely to be necessary but just in case...
-            .add(BashCommands.sudo("sed -i '/^#file_client/a file_client: local' /etc/salt/minion"))
+            .add(sudo("sed -i '/^#file_client/c file_client: local' /etc/salt/minion"))
             .build();
         return SshEffectorTasks.ssh(commands).summary("configure masterless");
     }
 
-    public static final TaskFactory<?> installSaltFormulas(final Map<String, Object> formulas, boolean force) {
-        return SshEffectorTasks.ssh(BashCommands.INSTALL_CURL).summary("install salt-ssh");
+
+    public static TaskFactory<?> enableFileRoots(boolean force) {
+
+        List<String> commandLines = MutableList.<String>builder()
+            .add("chmod go+w /etc/salt/minion")
+            .add("grep ^file_roots /etc/salt/minion || cat >> /etc/salt/minion << BROOKLYN_EOF")
+            .add("file_roots:")
+            .add("  base:")
+            .add("BROOKLYN_EOF")
+            .add(":") // required for sudo
+            .build();
+        return SshEffectorTasks.ssh(sudo(Strings.join(commandLines, "\n"))).summary("enable file_roots");
     }
 
+    public static TaskFactory<?> installSaltFormula(final String formula, final Object location, boolean force) {
+        return SshEffectorTasks.ssh(BashCommands.INSTALL_CURL).summary("TODO: install " + formula);
+    }
+
+    public static TaskFactory<?> installTopFile(final Set<? extends String> runList, boolean force) {
+        // TODO: ignore force?
+
+        final MutableList.Builder<String> topBuilder = MutableList.<String>builder()
+            .add("cat > /srv/salt/top.sls << BROOKLYN_EOF")
+            .add("base:")
+            .add("  '*':");
+        for (String stateName: runList) {
+            topBuilder.add("    - " + stateName);
+        }
+        topBuilder.add("BROOKLYN_EOF");
+        topBuilder.add(":"); // required for sudo to work
+        List<String> topLines = topBuilder.build();
+
+        List<String> commands = MutableList.<String>builder()
+            .add(sudo("mkdir -p /srv/salt"))
+            .add(sudo("chmod go+w /srv/salt"))
+            .add(sudo(Strings.join(topLines, "\n")))
+            .build();
+        return SshEffectorTasks.ssh(commands).summary("create top.sls file");
+
+    }
 }
