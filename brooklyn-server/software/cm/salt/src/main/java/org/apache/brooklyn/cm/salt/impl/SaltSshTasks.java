@@ -88,6 +88,20 @@ public class SaltSshTasks {
                 tb.add(ArchiveTasks.deploy(null, null, formulaUrl, EffectorTasks.findSshMachine(),
                     tempDirectoryForUnpack, false, null, null).newTask());
 
+                String installCmd = BashCommands.chain(
+                    "cd "+tempDirectoryForUnpack,
+                    "EXPANDED_DIR=`ls`",
+                    BashCommands.requireTest("`ls | wc -w` -eq 1",
+                        "The deployed archive "+ formulaUrl +" must contain exactly one directory"),
+                    "sudo mkdir -p /srv/formula",
+                    "sudo mv $EXPANDED_DIR /srv/formula/",
+                    // sed command below relies on enableFileRoots behaviour of append file_roots to end of config file
+                    "sudo sed -i \"$ a\\    - /srv/formula/$EXPANDED_DIR\" /etc/salt/minion",
+                    "cd ..",
+                    "rm -rf '"+tempDirectoryForUnpack+"'");
+                tb.add(SshEffectorTasks.ssh(installCmd).summary("installing " + formula + " states to /srv/formula")
+                    .requiringExitCodeZero().newTask());
+
                 return tb.build();
             }
         };
