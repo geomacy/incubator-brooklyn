@@ -29,6 +29,7 @@ import org.apache.brooklyn.entity.software.base.lifecycle.MachineLifecycleEffect
 import org.apache.brooklyn.util.core.config.ConfigBag;
 import org.apache.brooklyn.util.core.task.DynamicTasks;
 import org.apache.brooklyn.util.core.task.TaskBuilder;
+import org.apache.brooklyn.util.exceptions.FatalConfigurationRuntimeException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,7 +44,8 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
     @Override
     protected String startProcessesAtMachine(Supplier<MachineLocation> machineS) {
         SaltMode mode = detectSaltMode(entity());
-        LOG.info("Starting salt in '{}' mode at '{}'", mode, machineS.get().getDisplayName());
+        final MachineLocation machine = machineS.get();
+        LOG.info("Starting salt in '{}' mode at '{}'", mode, machine.getDisplayName());
         if (mode == SaltMode.MASTERLESS) {
             startWithSshAsync();
         } else {
@@ -88,7 +90,11 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
 
             final TaskBuilder<Object> formulaTasks = TaskBuilder.builder().displayName("installing formulas");
             for (String formula : formulas.keySet()) {
-                formulaTasks.add(SaltSshTasks.installSaltFormula(formula, formulas.get(formula), false).newTask());
+                final Object url = formulas.get(formula);
+                if (null == url) {
+                    throw new FatalConfigurationRuntimeException("No URL supplied for " + formula);
+                }
+                formulaTasks.add(SaltSshTasks.installSaltFormula(formula, url.toString(), false).newTask());
             }
             DynamicTasks.queue(formulaTasks.build());
         }

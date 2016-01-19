@@ -19,23 +19,26 @@
 package org.apache.brooklyn.cm.salt.impl;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
+import org.apache.brooklyn.api.mgmt.TaskAdaptable;
 import org.apache.brooklyn.api.mgmt.TaskFactory;
+import org.apache.brooklyn.core.effector.EffectorTasks;
 import org.apache.brooklyn.core.effector.ssh.SshEffectorTasks;
 import org.apache.brooklyn.util.collections.MutableList;
-import org.apache.brooklyn.util.collections.MutableMap;
+import org.apache.brooklyn.util.core.file.ArchiveTasks;
+import org.apache.brooklyn.util.core.task.TaskBuilder;
+import org.apache.brooklyn.util.core.task.Tasks;
 import org.apache.brooklyn.util.ssh.BashCommands;
+import org.apache.brooklyn.util.text.Identifiers;
 import org.apache.brooklyn.util.text.Strings;
-import org.apache.felix.framework.util.ImmutableList;
 
-import static org.apache.brooklyn.util.ssh.BashCommands.pipeTextTo;
-import static org.apache.brooklyn.util.ssh.BashCommands.pipeTextToFile;
 import static org.apache.brooklyn.util.ssh.BashCommands.sudo;
 
 
 public class SaltSshTasks {
+
+    private static final String SALT_FORMULA_ROOT = "/srv/salt";
 
     private SaltSshTasks() {
         // Utility class
@@ -67,14 +70,27 @@ public class SaltSshTasks {
             .add("grep ^file_roots /etc/salt/minion || cat >> /etc/salt/minion << BROOKLYN_EOF")
             .add("file_roots:")
             .add("  base:")
+            .add("    - /srv/salt/")
             .add("BROOKLYN_EOF")
             .add(":") // required for sudo
             .build();
         return SshEffectorTasks.ssh(sudo(Strings.join(commandLines, "\n"))).summary("enable file_roots");
     }
 
-    public static TaskFactory<?> installSaltFormula(final String formula, final Object location, boolean force) {
-        return SshEffectorTasks.ssh(BashCommands.INSTALL_CURL).summary("TODO: install " + formula);
+    public static TaskFactory<?> installSaltFormula(final String formula, final String formulaUrl, boolean force) {
+        return new TaskFactory<TaskAdaptable<?>>() {
+            @Override
+            public TaskAdaptable<?> newTask() {
+                TaskBuilder<Void> tb = Tasks.<Void>builder().displayName("install formula " + formula);
+
+                String tempDirectoryForUnpack = SALT_FORMULA_ROOT + "/tmp-" + Identifiers.makeRandomId(12);
+
+                tb.add(ArchiveTasks.deploy(null, null, formulaUrl, EffectorTasks.findSshMachine(),
+                    tempDirectoryForUnpack, false, null, null).newTask());
+
+                return tb.build();
+            }
+        };
     }
 
     public static TaskFactory<?> installTopFile(final Set<? extends String> runList, boolean force) {
