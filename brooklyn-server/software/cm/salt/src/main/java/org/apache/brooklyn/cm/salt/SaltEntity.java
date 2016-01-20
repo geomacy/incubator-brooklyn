@@ -29,12 +29,10 @@ import org.apache.brooklyn.util.core.flags.SetFromFlag;
 
 @ImplementedBy(SaltEntityImpl.class)
 @Catalog(name="SaltEntity", description="Software managed by Salt CM")
-public interface SaltEntity extends SoftwareProcess {
+public interface SaltEntity extends SoftwareProcess, SaltConfig {
 
     @SetFromFlag("version")
     ConfigKey<String> SUGGESTED_VERSION = ConfigKeys.newConfigKeyWithDefault(
             BrooklynConfigKeys.SUGGESTED_VERSION, "stable");
-
-
 
 }

@@ -30,7 +30,7 @@ import java.util.Map;
 import java.util.Set;
 
 @Beta
-public class SaltEntityImpl extends EffectorStartableImpl implements SaltEntity, SaltConfig {
+public class SaltEntityImpl extends EffectorStartableImpl implements SaltEntity {
     private static final Logger LOG = LoggerFactory.getLogger(SaltEntityImpl.class);
 
     public SaltEntityImpl() {
