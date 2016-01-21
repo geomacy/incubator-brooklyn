@@ -38,8 +38,6 @@ import static org.apache.brooklyn.util.ssh.BashCommands.sudo;
 
 public class SaltSshTasks {
 
-    private static final String SALT_FORMULA_ROOT = "/srv/salt";
-
     private SaltSshTasks() {
         // Utility class
     }
@@ -72,7 +70,7 @@ public class SaltSshTasks {
             .add("  base:")
             .add("    - /srv/salt/")
             .add("BROOKLYN_EOF")
-            .add("sudo mv /tmp/minion.update /etc/salt/minion")
+            .add(sudo("mv /tmp/minion.update /etc/salt/minion"))
             .add("}")
             .build();
         return SshEffectorTasks.ssh(Strings.join(commandLines, "\n"))
@@ -86,7 +84,7 @@ public class SaltSshTasks {
             public TaskAdaptable<?> newTask() {
                 TaskBuilder<Void> tb = Tasks.<Void>builder().displayName("install formula " + formula);
 
-                String tempDirectoryForUnpack = SALT_FORMULA_ROOT + "/tmp-" + Identifiers.makeRandomId(12);
+                String tempDirectoryForUnpack = "/tmp/download-" + formula + "-" + Identifiers.makeRandomId(12);
 
                 tb.add(ArchiveTasks.deploy(null, null, formulaUrl, EffectorTasks.findSshMachine(),
                     tempDirectoryForUnpack, false, null, null).newTask());
@@ -114,20 +112,19 @@ public class SaltSshTasks {
         // TODO: ignore force?
 
         final MutableList.Builder<String> topBuilder = MutableList.<String>builder()
-            .add("cat > /srv/salt/top.sls << BROOKLYN_EOF")
+            .add("cat > /tmp/top.sls << BROOKLYN_EOF")
             .add("base:")
             .add("  '*':");
         for (String stateName: runList) {
             topBuilder.add("    - " + stateName);
         }
         topBuilder.add("BROOKLYN_EOF");
-        topBuilder.add(":"); // required for sudo to work
-        List<String> topLines = topBuilder.build();
+        List<String> createTempTopFile = topBuilder.build();
 
         List<String> commands = MutableList.<String>builder()
             .add(sudo("mkdir -p /srv/salt"))
-            .add(sudo("chmod go+w /srv/salt"))
-            .add(sudo(Strings.join(topLines, "\n")))
+            .add(Strings.join(createTempTopFile, "\n"))
+            .add(sudo("mv /tmp/top.sls /srv/salt"))
             .build();
         return SshEffectorTasks.ssh(commands).summary("create top.sls file");
 
