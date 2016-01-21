@@ -64,17 +64,20 @@ public class SaltSshTasks {
 
 
     public static TaskFactory<?> enableFileRoots(boolean force) {
-
         List<String> commandLines = MutableList.<String>builder()
-            .add("chmod go+w /etc/salt/minion")
-            .add("grep ^file_roots /etc/salt/minion || cat >> /etc/salt/minion << BROOKLYN_EOF")
+            .add("grep ^file_roots /etc/salt/minion || {")
+            .add("cat /etc/salt/minion > /tmp/minion.update")
+            .add("cat >> /tmp/minion.update  << BROOKLYN_EOF")
             .add("file_roots:")
             .add("  base:")
             .add("    - /srv/salt/")
             .add("BROOKLYN_EOF")
-            .add(":") // required for sudo
+            .add("sudo mv /tmp/minion.update /etc/salt/minion")
+            .add("}")
             .build();
-        return SshEffectorTasks.ssh(sudo(Strings.join(commandLines, "\n"))).summary("enable file_roots");
+        return SshEffectorTasks.ssh(Strings.join(commandLines, "\n"))
+            .requiringExitCodeZero()
+            .summary("enable file_roots");
     }
 
     public static TaskFactory<?> installSaltFormula(final String formula, final String formulaUrl, boolean force) {
