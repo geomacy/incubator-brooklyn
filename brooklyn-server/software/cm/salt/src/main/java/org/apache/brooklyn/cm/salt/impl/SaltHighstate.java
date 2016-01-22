@@ -39,11 +39,15 @@ import java.util.Map;
 public class SaltHighstate {
 
     private static final Logger LOG = LoggerFactory.getLogger(SaltHighstate.class);
-    public static TypeToken<Map<String, Object>> STATE_FUNCTION_TYPE =
-        new TypeToken<Map<String, Object>>() {};
+
+    public static final String HIGHSTATE_SENSOR_PREFIX = "salt.state";
+
+    public static TypeToken<Map<String, Map<String, Object>>> STATE_FUNCTION_TYPE =
+        new TypeToken<Map<String, Map<String, Object>>>() {};
 
     private SaltHighstate() {}
 
+    // TODO handle CastClassException gracefully
     public static void applyHighstate(String contents, Entity entity) {
 
         final String adaptedYaml = adaptForSaltYamlTypes(contents);
@@ -51,6 +55,7 @@ public class SaltHighstate {
         final List<Object> objects = Yamls.parseAll(adaptedYaml);
 
         for (Object entry: objects) {
+            @SuppressWarnings("unchecked")
             final Map<String, Object> scopeMap = Yamls.getAs(entry, Map.class);
             applyStatesInScope(entity, scopeMap);
         }
@@ -58,9 +63,10 @@ public class SaltHighstate {
 
     private static void applyStatesInScope(Entity entity, Map<String, Object> scopeMap) {
         for (String scope: scopeMap.keySet()) {
+            @SuppressWarnings("unchecked")
             final Map<String, Object> stateMap = Yamls.getAs(scopeMap.get(scope), Map.class);
             for (String id: stateMap.keySet()) {
-                applyStateSensors(id, stateMap.get(id), entity);
+                applyStateSensor(id, stateMap.get(id), entity);
             }
         }
     }
@@ -71,9 +77,10 @@ public class SaltHighstate {
     }
 
     @SuppressWarnings("unchecked")
-    private static void applyStateSensors(String id, Object stateData, Entity entity) {
+    private static void applyStateSensor(String id, Object stateData, Entity entity) {
         addStateSensor(id, entity);
         Map<String, List<Object>> stateInfo = (Map<String, List<Object>>)stateData;
+        Map<String, Map<String, Object>> sensorValue = MutableMap.of();
         for (String stateModule : stateInfo.keySet()) {
             if (isSaltInternal(stateModule)) {
                 continue;
@@ -88,25 +95,18 @@ public class SaltHighstate {
                     stateFunction = entry.toString();
                 }
             }
+            final String sensorName = stateModule + "." + stateFunction;
+            sensorValue.put(sensorName, moduleSettings);
 
-            LOG.debug("Found {} state module {}", id, stateModule + "."  +stateFunction);
-            for (String name : moduleSettings.keySet()) {
-                LOG.debug("    {} = {} ", name, moduleSettings.get(name).toString());
-                addModuleSensors(entity, id, stateModule, stateFunction, moduleSettings);
-            }
+            final AttributeSensor<Map<String, Map<String, Object>>> newSensor =
+                Sensors.newSensor(STATE_FUNCTION_TYPE, HIGHSTATE_SENSOR_PREFIX + "." + id,
+                    stateModule + "." + stateFunction + " details for Salt state id " + id);
+            entity.sensors().set(newSensor, sensorValue);
+
+            LOG.debug("Found {} state module {}", id, sensorName);
         }
     }
 
-    private static void addModuleSensors(Entity entity, String id, String stateModule, String stateMethod,
-             Map<String, Object> values) {
-
-        String sensorName = Strings.join(ImmutableList.of(id, stateModule, stateMethod), ".");
-
-        final AttributeSensor<Map<String, Object>> newSensor =
-            Sensors.newSensor(STATE_FUNCTION_TYPE, sensorName,
-                stateModule + "." + stateMethod + " details for Salt state id " + id);
-        entity.sensors().set(newSensor, values);
-    }
 
     private static void addStateSensor(String state, Entity entity) {
         List<String> states = entity.sensors().get(SaltEntityImpl.STATES);
@@ -118,7 +118,6 @@ public class SaltHighstate {
             entity.sensors().set(SaltEntityImpl.STATES, states);
         }
     }
-
 
     private static boolean isSaltInternal(String module) {
         return module.startsWith("__");
