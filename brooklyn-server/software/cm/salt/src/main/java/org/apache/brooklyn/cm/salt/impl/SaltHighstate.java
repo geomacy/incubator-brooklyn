@@ -34,12 +34,12 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Utility for handling a Salt highstate description.
+ * Utility for setting a Salt highstate description on entity sensors.
  */
 public class SaltHighstate {
 
     private static final Logger LOG = LoggerFactory.getLogger(SaltHighstate.class);
-    public static TypeToken<Map<String, Object>> MODULE_METHOD_TYPE =
+    public static TypeToken<Map<String, Object>> STATE_FUNCTION_TYPE =
         new TypeToken<Map<String, Object>>() {};
 
     private SaltHighstate() {}
@@ -52,15 +52,15 @@ public class SaltHighstate {
 
         for (Object entry: objects) {
             final Map<String, Object> scopeMap = Yamls.getAs(entry, Map.class);
-            applyStateScope(entity, scopeMap);
+            applyStatesInScope(entity, scopeMap);
         }
     }
 
-    private static void applyStateScope(Entity entity, Map<String, Object> scopeMap) {
+    private static void applyStatesInScope(Entity entity, Map<String, Object> scopeMap) {
         for (String scope: scopeMap.keySet()) {
             final Map<String, Object> stateMap = Yamls.getAs(scopeMap.get(scope), Map.class);
-            for (String state: stateMap.keySet()) {
-                applyStateSensors(state, stateMap.get(state), entity);
+            for (String id: stateMap.keySet()) {
+                applyStateSensors(id, stateMap.get(id), entity);
             }
         }
     }
@@ -71,40 +71,40 @@ public class SaltHighstate {
     }
 
     @SuppressWarnings("unchecked")
-    private static void applyStateSensors(String state, Object stateData, Entity entity) {
-        addStateSensor(state, entity);
+    private static void applyStateSensors(String id, Object stateData, Entity entity) {
+        addStateSensor(id, entity);
         Map<String, List<Object>> stateInfo = (Map<String, List<Object>>)stateData;
-        for (String module : stateInfo.keySet()) {
-            if (isSaltInternal(module)) {
+        for (String stateModule : stateInfo.keySet()) {
+            if (isSaltInternal(stateModule)) {
                 continue;
             }
-            final List<Object> stateEntries = stateInfo.get(module);
-            String method = "";
+            final List<Object> stateEntries = stateInfo.get(stateModule);
+            String stateFunction = "";
             Map<String, Object> moduleSettings = MutableMap.of();
             for (Object entry : stateEntries) {
                 if (entry instanceof Map) {
                     moduleSettings.putAll((Map<String, Object>)entry);
                 } else {
-                    method = entry.toString();
+                    stateFunction = entry.toString();
                 }
             }
 
-            LOG.debug("Found {} state module {}", state, module + "."  +method);
+            LOG.debug("Found {} state module {}", id, stateModule + "."  +stateFunction);
             for (String name : moduleSettings.keySet()) {
                 LOG.debug("    {} = {} ", name, moduleSettings.get(name).toString());
-                addModuleSensors(entity, state, module, method, moduleSettings);
+                addModuleSensors(entity, id, stateModule, stateFunction, moduleSettings);
             }
         }
     }
 
-    private static void addModuleSensors(Entity entity, String state, String module, String method,
+    private static void addModuleSensors(Entity entity, String id, String stateModule, String stateMethod,
              Map<String, Object> values) {
 
-        String sensorName = Strings.join(ImmutableList.of(state, module, method), ".");
+        String sensorName = Strings.join(ImmutableList.of(id, stateModule, stateMethod), ".");
 
         final AttributeSensor<Map<String, Object>> newSensor =
-            Sensors.newSensor(MODULE_METHOD_TYPE, sensorName,
-                module + "." + method + " details for Salt state " + state);
+            Sensors.newSensor(STATE_FUNCTION_TYPE, sensorName,
+                stateModule + "." + stateMethod + " details for Salt state id " + id);
         entity.sensors().set(newSensor, values);
     }
 

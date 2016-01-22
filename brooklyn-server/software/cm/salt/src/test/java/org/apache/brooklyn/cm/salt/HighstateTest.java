@@ -69,8 +69,17 @@ public class HighstateTest {
             .contains("apache-restart");
 
         final Map<String, Object> apachePkgInstalled =
-            entity.sensors().get(Sensors.newSensor(SaltHighstate.MODULE_METHOD_TYPE, "apache.pkg.installed", ""));
+            entity.sensors().get(Sensors.newSensor(SaltHighstate.STATE_FUNCTION_TYPE, "apache.pkg.installed", ""));
         assertThat(apachePkgInstalled).isNotNull();
+        assertThat(apachePkgInstalled.get("name")).isEqualTo("apache2");
+        assertThat(apachePkgInstalled.get("order")).isEqualTo(10000);
+
+        final Map<String, Object> apacheServiceRunning =
+            entity.sensors().get(Sensors.newSensor(SaltHighstate.STATE_FUNCTION_TYPE, "apache.service.running", ""));
+        assertThat(apacheServiceRunning).isNotNull();
+        assertThat(apacheServiceRunning.get("name")).isEqualTo("apache2");
+        assertThat(apacheServiceRunning.get("order")).isEqualTo(10001);
+        assertThat(apacheServiceRunning.get("enable"));
     }
 
 
