@@ -42,19 +42,19 @@ public class SaltEntityImpl extends EffectorStartableImpl implements SaltEntity 
         super.init();
 
         final Set<? extends String> runList = getConfig(SaltConfig.SALT_RUN_LIST);
-        LOG.info("Run list size is {}", runList.size());
+        LOG.debug("Run list size is {}", runList.size());
         for (String state : runList) {
-            LOG.info("Runlist state: {} ", state);
+            LOG.debug("Runlist state: {} ", state);
         }
 
         final Map<String, String> formulas = getConfig(SaltConfig.SALT_FORMULAS);
-        LOG.info("Formulas size: {}", formulas.size());
+        LOG.debug("Formulas size: {}", formulas.size());
         for (String formula : formulas.keySet()) {
-            LOG.info("Formula configured: {} -> {}", formula, formulas.get(formula));
+            LOG.debug("Formula configured: {} -> {}", formula, formulas.get(formula));
         }
 
         SaltConfig.SaltMode mode = getConfig(SaltConfig.SALT_MODE);
-        LOG.info("Initialize SaltStack {} mode", mode.name());
+        LOG.debug("Initialize SaltStack {} mode", mode.name());
         new SaltLifecycleEffectorTasks().attachLifecycleEffectors(this);
     }
 

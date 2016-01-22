@@ -18,14 +18,19 @@
  */
 package org.apache.brooklyn.cm.salt;
 
+import com.google.common.reflect.TypeToken;
 import org.apache.brooklyn.api.catalog.Catalog;
 import org.apache.brooklyn.api.entity.ImplementedBy;
+import org.apache.brooklyn.api.sensor.AttributeSensor;
 import org.apache.brooklyn.cm.salt.impl.SaltEntityImpl;
 import org.apache.brooklyn.config.ConfigKey;
 import org.apache.brooklyn.core.config.ConfigKeys;
 import org.apache.brooklyn.core.entity.BrooklynConfigKeys;
+import org.apache.brooklyn.core.sensor.Sensors;
 import org.apache.brooklyn.entity.software.base.SoftwareProcess;
 import org.apache.brooklyn.util.core.flags.SetFromFlag;
+
+import java.util.List;
 
 @ImplementedBy(SaltEntityImpl.class)
 @Catalog(name="SaltEntity", description="Software managed by Salt CM")
@@ -34,5 +39,9 @@ public interface SaltEntity extends SoftwareProcess, SaltConfig {
     @SetFromFlag("version")
     ConfigKey<String> SUGGESTED_VERSION = ConfigKeys.newConfigKeyWithDefault(
             BrooklynConfigKeys.SUGGESTED_VERSION, "stable");
+
+    AttributeSensor<List<String>> STATES = Sensors.newSensor(new TypeToken<List<String>>() {}, "salt.states",
+        "Salt Highstate states");
+
 
 }

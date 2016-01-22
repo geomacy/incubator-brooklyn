@@ -29,6 +29,7 @@ import org.apache.brooklyn.util.collections.MutableList;
 import org.apache.brooklyn.util.core.file.ArchiveTasks;
 import org.apache.brooklyn.util.core.task.TaskBuilder;
 import org.apache.brooklyn.util.core.task.Tasks;
+import org.apache.brooklyn.util.core.task.system.ProcessTaskWrapper;
 import org.apache.brooklyn.util.ssh.BashCommands;
 import org.apache.brooklyn.util.text.Identifiers;
 import org.apache.brooklyn.util.text.Strings;
@@ -132,5 +133,13 @@ public class SaltSshTasks {
 
     public static TaskAdaptable applyState(boolean force) {
         return SshEffectorTasks.ssh(sudo("salt-call --local state.apply")).summary("salt state.apply").newTask();
+    }
+
+    public static ProcessTaskWrapper<String> retrieveHighstate() {
+        return SshEffectorTasks.ssh(
+            sudo("salt-call --local state.show_highstate --out=yaml"))
+            .summary("retrieve highstate")
+            .requiringZeroAndReturningStdout()
+            .newTask();
     }
 }

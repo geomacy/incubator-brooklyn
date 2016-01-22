@@ -18,19 +18,22 @@
  */
 package org.apache.brooklyn.cm.salt.impl;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import org.apache.brooklyn.api.entity.Entity;
 import org.apache.brooklyn.api.location.MachineLocation;
+import org.apache.brooklyn.api.mgmt.TaskAdaptable;
 import org.apache.brooklyn.cm.salt.SaltConfig;
 import org.apache.brooklyn.entity.software.base.SoftwareProcess;
 import org.apache.brooklyn.entity.software.base.lifecycle.MachineLifecycleEffectorTasks;
 import org.apache.brooklyn.util.core.config.ConfigBag;
 import org.apache.brooklyn.util.core.task.DynamicTasks;
 import org.apache.brooklyn.util.core.task.TaskBuilder;
+import org.apache.brooklyn.util.core.task.system.ProcessTaskWrapper;
 import org.apache.brooklyn.util.exceptions.FatalConfigurationRuntimeException;
-import org.apache.brooklyn.util.ssh.BashCommands;
+import org.apache.brooklyn.util.yaml.Yamls;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -100,9 +103,22 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
             DynamicTasks.queue(formulaTasks.build());
         }
 
-        DynamicTasks.queue(SaltSshTasks.applyState(false));
+        final TaskAdaptable applyState = SaltSshTasks.applyState(false);
+        DynamicTasks.queue(applyState);
+        applyState.asTask().blockUntilEnded();
+
+        connectSensors();
 
     }
+
+    private void connectSensors() {
+        final ProcessTaskWrapper<String> retrieveHighstate = SaltSshTasks.retrieveHighstate();
+        final ProcessTaskWrapper<String> highstate = DynamicTasks.queue(retrieveHighstate).block();
+        String stateDescription = highstate.get();
+
+        SaltHighstate.applyHighstate(stateDescription, entity());
+    }
+
 
     protected void postStartCustom() {
         // TODO: check for package installed?

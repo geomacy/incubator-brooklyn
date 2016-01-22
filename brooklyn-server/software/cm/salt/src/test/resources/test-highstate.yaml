@@ -1,0 +1,29 @@
+local:
+  apache:
+    pkg:
+    - name: apache2
+    - installed
+    - order: 10000
+    service:
+    - name: apache2
+    - enable: true
+    - running
+    - order: 10001
+    __sls__: !!python/unicode apache
+    __env__: base
+  apache-reload:
+    module:
+    - name: service.reload
+    - m_name: apache2
+    - wait
+    - order: 10002
+    __sls__: !!python/unicode apache
+    __env__: base
+  apache-restart:
+    module:
+    - name: service.restart
+    - m_name: apache2
+    - wait
+    - order: 10003
+    __sls__: !!python/unicode apache
+    __env__: base
