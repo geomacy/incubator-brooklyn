@@ -96,7 +96,7 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
             for (String formula : formulas.keySet()) {
                 final Object url = formulas.get(formula);
                 if (null == url) {
-                    throw new FatalConfigurationRuntimeException("No URL supplied for " + formula);
+                    throw new IllegalArgumentException("No URL supplied for " + formula);
                 }
                 formulaTasks.add(SaltSshTasks.installSaltFormula(formula, url.toString(), false).newTask());
             }
