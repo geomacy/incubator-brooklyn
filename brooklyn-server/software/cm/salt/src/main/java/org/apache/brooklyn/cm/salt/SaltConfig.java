@@ -50,8 +50,8 @@ public interface SaltConfig {
             "SaltStack execution mode (master/minion/masterless)", SaltMode.MASTERLESS);
 
     @SetFromFlag("formulas")
-    MapConfigKey<String> SALT_FORMULAS = new MapConfigKey<>(String.class, "brooklyn.salt.formulaUrls",
-            "Map of Salt formula URLs", ImmutableMap.<String,String>of());
+    SetConfigKey<String> SALT_FORMULAS = new SetConfigKey<>(String.class, "brooklyn.salt.formulaUrls",
+            "Map of Salt formula URLs", ImmutableSet.<String>of());
 
     @SetFromFlag("runList")
     SetConfigKey<String> SALT_RUN_LIST = new SetConfigKey<>(String.class, "brooklyn.salt.runList",

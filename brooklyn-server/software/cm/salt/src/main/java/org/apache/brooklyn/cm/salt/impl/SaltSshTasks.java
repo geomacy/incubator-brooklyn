@@ -79,13 +79,13 @@ public class SaltSshTasks {
             .summary("enable file_roots");
     }
 
-    public static TaskFactory<?> installSaltFormula(final String formula, final String formulaUrl, boolean force) {
+    public static TaskFactory<?> installSaltFormula(final String formulaUrl, boolean force) {
         return new TaskFactory<TaskAdaptable<?>>() {
             @Override
             public TaskAdaptable<?> newTask() {
-                TaskBuilder<Void> tb = Tasks.<Void>builder().displayName("install formula " + formula);
+                TaskBuilder<Void> tb = Tasks.<Void>builder().displayName("install formula " + formulaUrl);
 
-                String tempDirectoryForUnpack = "/tmp/download-" + formula + "-" + Identifiers.makeRandomId(12);
+                String tempDirectoryForUnpack = "/tmp/download-" + Identifiers.makeRandomId(12);
 
                 tb.add(ArchiveTasks.deploy(null, null, formulaUrl, EffectorTasks.findSshMachine(),
                     tempDirectoryForUnpack, false, null, null).newTask());
@@ -101,7 +101,7 @@ public class SaltSshTasks {
                     "sudo sed -i \"$ a\\    - /srv/formula/$EXPANDED_DIR\" /etc/salt/minion",
                     "cd ..",
                     "rm -rf '"+tempDirectoryForUnpack+"'");
-                tb.add(SshEffectorTasks.ssh(installCmd).summary("installing " + formula + " states to /srv/formula")
+                tb.add(SshEffectorTasks.ssh(installCmd).summary("installing " + formulaUrl + " states to /srv/formula")
                     .requiringExitCodeZero().newTask());
 
                 return tb.build();

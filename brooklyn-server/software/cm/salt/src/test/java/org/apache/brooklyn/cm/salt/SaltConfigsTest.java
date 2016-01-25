@@ -61,10 +61,10 @@ public class SaltConfigsTest {
     @Test
     public void testAddToFormulas() {
         TestApplication app = TestApplication.Factory.newManagedInstanceForTests();
-        SaltConfigs.addToFormulas(app, "k1", "v1");
-        SaltConfigs.addToFormulas(app, "k2", "v2");
-        Map<String, String> formulas = app.getConfig(SaltConfig.SALT_FORMULAS);
-        Assert.assertEquals(formulas, ImmutableMap.of("k1", "v1", "k2", "v2"));
+        SaltConfigs.addToFormulas(app, "v1");
+        SaltConfigs.addToFormulas(app, "v2");
+        final Set<? extends String> formulas = app.getConfig(SaltConfig.SALT_FORMULAS);
+        Assert.assertEquals(formulas, ImmutableSet.of("v1", "v2"));
     }
 
 }

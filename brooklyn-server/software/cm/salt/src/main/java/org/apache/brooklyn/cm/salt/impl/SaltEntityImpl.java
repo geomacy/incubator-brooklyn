@@ -47,10 +47,10 @@ public class SaltEntityImpl extends EffectorStartableImpl implements SaltEntity 
             LOG.debug("Runlist state: {} ", state);
         }
 
-        final Map<String, String> formulas = getConfig(SaltConfig.SALT_FORMULAS);
+        final Set<? extends String> formulas = getConfig(SaltConfig.SALT_FORMULAS);
         LOG.debug("Formulas size: {}", formulas.size());
-        for (String formula : formulas.keySet()) {
-            LOG.debug("Formula configured: {} -> {}", formula, formulas.get(formula));
+        for (String formula : formulas) {
+            LOG.debug("Formula configured:  {}", formula);
         }
 
         SaltConfig.SaltMode mode = getConfig(SaltConfig.SALT_MODE);

@@ -60,12 +60,12 @@ public class SaltConfigs {
         entity.config().set(SaltConfig.SALT_SSH_LAUNCH_ATTRIBUTES, MapModifications.add((Map)attributesMap));
     }
 
-    public static void addToFormuals(EntitySpec<?> entity, String formulaName, String formulaUrl) {
-        entity.configure(SaltConfig.SALT_FORMULAS.subKey(formulaName), formulaUrl);
+    public static void addToFormulas(EntitySpec<?> entity, String formulaUrl) {
+        entity.configure(SaltConfig.SALT_FORMULAS, SetModifications.addItem(formulaUrl));
     }
 
-    public static void addToFormulas(EntityInternal entity, String formulaName, String formulaUrl) {
-        entity.config().set(SaltConfig.SALT_FORMULAS.subKey(formulaName), formulaUrl);
+    public static void addToFormulas(EntityInternal entity, String formulaUrl) {
+        entity.config().set(SaltConfig.SALT_FORMULAS, SetModifications.addItem(formulaUrl));
     }
 
     public static <T> T getRequiredConfig(Entity entity, ConfigKey<T> key) {

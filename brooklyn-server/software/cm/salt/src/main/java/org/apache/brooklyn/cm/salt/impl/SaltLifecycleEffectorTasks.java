@@ -18,8 +18,6 @@
  */
 package org.apache.brooklyn.cm.salt.impl;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.apache.brooklyn.api.entity.Entity;
@@ -28,12 +26,9 @@ import org.apache.brooklyn.api.mgmt.TaskAdaptable;
 import org.apache.brooklyn.cm.salt.SaltConfig;
 import org.apache.brooklyn.entity.software.base.SoftwareProcess;
 import org.apache.brooklyn.entity.software.base.lifecycle.MachineLifecycleEffectorTasks;
-import org.apache.brooklyn.util.core.config.ConfigBag;
 import org.apache.brooklyn.util.core.task.DynamicTasks;
 import org.apache.brooklyn.util.core.task.TaskBuilder;
 import org.apache.brooklyn.util.core.task.system.ProcessTaskWrapper;
-import org.apache.brooklyn.util.exceptions.FatalConfigurationRuntimeException;
-import org.apache.brooklyn.util.yaml.Yamls;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -80,9 +75,8 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
 
         final Set<? extends String> runList = entity().getConfig(SaltConfig.SALT_RUN_LIST);
 
-        Map<String, Object> formulas = ConfigBag.newInstance(entity()
-            .getConfig(SaltConfig.SALT_FORMULAS))
-            .getAllConfig();
+        final Set<? extends String> formulas = entity()
+            .getConfig(SaltConfig.SALT_FORMULAS);
 
         DynamicTasks.queue(
             SaltSshTasks.installSalt(false),
@@ -93,12 +87,8 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
             DynamicTasks.queue(SaltSshTasks.enableFileRoots(false));
 
             final TaskBuilder<Object> formulaTasks = TaskBuilder.builder().displayName("installing formulas");
-            for (String formula : formulas.keySet()) {
-                final Object url = formulas.get(formula);
-                if (null == url) {
-                    throw new IllegalArgumentException("No URL supplied for " + formula);
-                }
-                formulaTasks.add(SaltSshTasks.installSaltFormula(formula, url.toString(), false).newTask());
+            for (String url : formulas) {
+                formulaTasks.add(SaltSshTasks.installSaltFormula(url.toString(), false).newTask());
             }
             DynamicTasks.queue(formulaTasks.build());
         }
