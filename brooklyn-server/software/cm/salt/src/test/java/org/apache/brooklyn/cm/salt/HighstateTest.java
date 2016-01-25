@@ -86,6 +86,6 @@ public class HighstateTest {
     private String getTestYaml() {
         final ResourceUtils resourceUtils = ResourceUtils.create();
         final InputStream yaml = resourceUtils.getResourceFromUrl("classpath://test-highstate.yaml");
-        return Streams.readFullyString(yaml).replaceAll("!!python/unicode", "!!java.lang.String");
+        return Streams.readFullyString(yaml);
     }
 }
