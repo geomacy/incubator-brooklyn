@@ -26,9 +26,11 @@ import org.apache.brooklyn.api.mgmt.TaskFactory;
 import org.apache.brooklyn.core.effector.EffectorTasks;
 import org.apache.brooklyn.core.effector.ssh.SshEffectorTasks;
 import org.apache.brooklyn.util.collections.MutableList;
+import org.apache.brooklyn.util.core.ResourceUtils;
 import org.apache.brooklyn.util.core.file.ArchiveTasks;
 import org.apache.brooklyn.util.core.task.TaskBuilder;
 import org.apache.brooklyn.util.core.task.Tasks;
+import org.apache.brooklyn.util.core.task.ssh.SshPutTaskFactory;
 import org.apache.brooklyn.util.core.task.system.ProcessTaskWrapper;
 import org.apache.brooklyn.util.ssh.BashCommands;
 import org.apache.brooklyn.util.text.Identifiers;
@@ -146,5 +148,15 @@ public class SaltSshTasks {
             .summary("retrieve highstate")
             .requiringZeroAndReturningStdout()
             .newTask();
+    }
+
+
+    public static TaskFactory<?> installSaltUtilities(boolean force) {
+        String utilityScript = "salt_utilities.sh";
+//        SshEffectorTasks.put(Os.mergePathsUnix(getRunDir(), utilityScript))
+        final SshPutTaskFactory putter = SshEffectorTasks.put(utilityScript)
+            .contents(ResourceUtils.create().getResourceFromUrl("classpath:" + utilityScript))
+            .summary("install salt shell utils");
+        return putter;
     }
 }
