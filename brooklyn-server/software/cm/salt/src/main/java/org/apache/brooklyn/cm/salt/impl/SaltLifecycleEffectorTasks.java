@@ -56,11 +56,6 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
     }
 
 
-    @Override
-    protected StopMachineDetails<Integer> stopAnyProvisionedMachines() {
-        return super.stopAnyProvisionedMachines();
-    }
-
     protected static SaltMode detectSaltMode(Entity entity) {
         SaltMode mode = entity.getConfig(SaltConfig.SALT_MODE);
         Preconditions.checkNotNull(mode, "Required config " + SaltConfig.SALT_MODE + " not provided for entity: " + entity);
