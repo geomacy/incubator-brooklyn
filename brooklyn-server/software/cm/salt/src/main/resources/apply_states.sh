@@ -16,28 +16,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
-function state_exists () {
-  salt-call --local state.sls test=True $1 2>/dev/null | grep Succeeded >/dev/null 2>&1
-}
+. /etc/salt/salt_utilities.sh
 
-function verify_states () {
-    echo verifying states "$@"
-    for state in "$@" ; do
-      state_exists $state || { >&2 echo state $state not found ; exit 1 ; }
-    done
-}
+verify=""
+while [ $# -gt 0 ]; do
+	case $1 in
+	-v)
+		verify="true"
+		shift
+		;;
+	*)
+	    break
+		;;
+   esac
+done
 
-function apply_states () {
-    echo applying states "$@"
-    for state in "$@" ; do
-        salt-call --local state.apply $state
-    done
-}
-
-function find_states () {
-    for state in "$@" ; do
-      if state_exists $state ; then
-        echo $state
-      fi
-    done
-}
+if [ -n "${verify}" ] ; then
+    verify_states "$@"
+fi
+apply_states  "$@"

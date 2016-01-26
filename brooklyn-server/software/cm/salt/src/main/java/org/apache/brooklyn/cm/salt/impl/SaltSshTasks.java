@@ -21,11 +21,15 @@ package org.apache.brooklyn.cm.salt.impl;
 import java.util.List;
 import java.util.Set;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import org.apache.brooklyn.api.mgmt.Task;
 import org.apache.brooklyn.api.mgmt.TaskAdaptable;
 import org.apache.brooklyn.api.mgmt.TaskFactory;
 import org.apache.brooklyn.core.effector.EffectorTasks;
 import org.apache.brooklyn.core.effector.ssh.SshEffectorTasks;
 import org.apache.brooklyn.util.collections.MutableList;
+import org.apache.brooklyn.util.collections.MutableSet;
 import org.apache.brooklyn.util.core.ResourceUtils;
 import org.apache.brooklyn.util.core.file.ArchiveTasks;
 import org.apache.brooklyn.util.core.task.TaskBuilder;
@@ -36,10 +40,14 @@ import org.apache.brooklyn.util.ssh.BashCommands;
 import org.apache.brooklyn.util.text.Identifiers;
 import org.apache.brooklyn.util.text.Strings;
 
+import static org.apache.brooklyn.core.effector.ssh.SshEffectorTasks.ssh;
 import static org.apache.brooklyn.util.ssh.BashCommands.sudo;
 
 
 public class SaltSshTasks {
+
+    private static final String UTILITY_SCRIPT = "salt_utilities.sh";
+    private static final String APPLY_STATES = "apply_states.sh";
 
     private SaltSshTasks() {
         // Utility class
@@ -51,7 +59,7 @@ public class SaltSshTasks {
             .add(BashCommands.commandToDownloadUrlAs("https://bootstrap.saltstack.com", "install_salt.sh"))
             .add(sudo("sh install_salt.sh"))
             .build();
-        return SshEffectorTasks.ssh(commands).summary("install salt");
+        return ssh(commands).summary("install salt");
     }
 
     public static TaskFactory<?> configureForMasterlessOperation(boolean force) {
@@ -60,7 +68,7 @@ public class SaltSshTasks {
             .add(BashCommands.installPackage("sed")) // hardly likely to be necessary but just in case...
             .add(sudo("sed -i '/^#file_client/c file_client: local' /etc/salt/minion"))
             .build();
-        return SshEffectorTasks.ssh(commands).summary("configure masterless");
+        return ssh(commands).summary("configure masterless");
     }
 
 
@@ -76,7 +84,7 @@ public class SaltSshTasks {
             .add(sudo("mv /tmp/minion.update /etc/salt/minion"))
             .add("}")
             .build();
-        return SshEffectorTasks.ssh(Strings.join(commandLines, "\n"))
+        return ssh(Strings.join(commandLines, "\n"))
             .requiringExitCodeZero()
             .summary("enable file_roots");
     }
@@ -103,7 +111,7 @@ public class SaltSshTasks {
                     "sudo sed -i \"$ a\\    - /srv/formula/$EXPANDED_DIR\" /etc/salt/minion",
                     "cd ..",
                     "rm -rf '"+tempDirectoryForUnpack+"'");
-                tb.add(SshEffectorTasks.ssh(installCmd).summary("installing " + formulaUrl + " states to /srv/formula")
+                tb.add(ssh(installCmd).summary("installing " + formulaUrl + " states to /srv/formula")
                     .requiringExitCodeZero().newTask());
 
                 return tb.build();
@@ -129,22 +137,21 @@ public class SaltSshTasks {
             .add(Strings.join(createTempTopFile, "\n"))
             .add(sudo("mv /tmp/top.sls /srv/salt"))
             .build();
-        return SshEffectorTasks.ssh(commands).summary("create top.sls file");
+        return ssh(commands).summary("create top.sls file");
 
     }
 
     public static TaskAdaptable applyTopState(boolean force) {
-        return SshEffectorTasks.ssh(sudo("salt-call --local state.apply")).summary("salt state.apply").newTask();
+        return ssh(sudo("salt-call --local state.apply")).summary("salt state.apply").newTask();
     }
 
     public static TaskAdaptable applyState(String state, boolean force) {
         final String commandName = "state.apply " + state;
-        return SshEffectorTasks.ssh(sudo("salt-call --local " + commandName)).summary(commandName).newTask();
+        return ssh(sudo("salt-call --local " + commandName)).summary(commandName).newTask();
     }
 
     public static ProcessTaskWrapper<String> retrieveHighstate() {
-        return SshEffectorTasks.ssh(
-            sudo("salt-call --local state.show_highstate --out=yaml"))
+        return ssh(sudo("salt-call --local state.show_highstate --out=yaml"))
             .summary("retrieve highstate")
             .requiringZeroAndReturningStdout()
             .newTask();
@@ -152,11 +159,35 @@ public class SaltSshTasks {
 
 
     public static TaskFactory<?> installSaltUtilities(boolean force) {
-        String utilityScript = "salt_utilities.sh";
-//        SshEffectorTasks.put(Os.mergePathsUnix(getRunDir(), utilityScript))
-        final SshPutTaskFactory putter = SshEffectorTasks.put(utilityScript)
-            .contents(ResourceUtils.create().getResourceFromUrl("classpath:" + utilityScript))
-            .summary("install salt shell utils");
-        return putter;
+        return new TaskFactory<TaskAdaptable<?>>() {
+            @Override
+            public TaskAdaptable<?> newTask() {
+                final TaskBuilder<Void> builder = Tasks.<Void>builder()
+                    .displayName("install salt utilities")
+                    .add(installScript(UTILITY_SCRIPT, "install salt shell utils").newTask())
+                    .add(installScript(APPLY_STATES, "install salt state script").newTask())
+                    .add(ssh(sudo("mv /tmp/" + UTILITY_SCRIPT + " /etc/salt")).newTask())
+                    .add(ssh(sudo("mv /tmp/" + APPLY_STATES + " /etc/salt")).newTask())
+                    .add(ssh(sudo("chmod +x /etc/salt/" + APPLY_STATES)).newTask());
+                return builder.build();
+            }
+        };
     }
+
+    private static SshPutTaskFactory installScript(String name, String description) {
+        return SshEffectorTasks.put("/tmp/" + name)
+                .contents(ResourceUtils.create().getResourceFromUrl("classpath:" + name))
+                .summary(description);
+    }
+
+    public static TaskFactory<?> stopFromStates(Set<? extends String> states, boolean force) {
+        StringBuilder stateArgs = new StringBuilder();
+        for (String state : states) {
+            stateArgs.append(" ").append(state).append(".stop");
+        }
+        return ssh(sudo("/etc/salt/apply_states.sh -v " + stateArgs))
+            .requiringExitCodeZero()
+            .summary("implicit stop");
+    }
+
 }

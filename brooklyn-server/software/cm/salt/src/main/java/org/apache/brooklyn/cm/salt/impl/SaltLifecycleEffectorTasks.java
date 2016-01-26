@@ -64,16 +64,16 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
 
     protected void startWithSshAsync() {
 
-        final Set<? extends String> runList = entity().getConfig(SaltConfig.START_STATES);
+        final Set<? extends String> startStates = entity().getConfig(SaltConfig.START_STATES);
 
         final Set<? extends String> formulas = entity()
             .getConfig(SaltConfig.SALT_FORMULAS);
 
         DynamicTasks.queue(
-            SaltSshTasks.installSaltUtilities(false),
             SaltSshTasks.installSalt(false),
+            SaltSshTasks.installSaltUtilities(false),
             SaltSshTasks.configureForMasterlessOperation(false),
-            SaltSshTasks.installTopFile(runList, false));
+            SaltSshTasks.installTopFile(startStates, false));
 
         if (formulas.size() > 0) {
             DynamicTasks.queue(SaltSshTasks.enableFileRoots(false));
@@ -128,9 +128,8 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
     }
 
     private void stopBasedOnStartStates() {
-        // TODO - for all start states S check if there is a S.action state
-        // if so apply all S.action
-        // if not set on fire
+        final Set<? extends String> startStates = entity().getConfig(SaltConfig.START_STATES);
+        DynamicTasks.queue(SaltSshTasks.stopFromStates(startStates, false));
     }
 
     public void restart(ConfigBag parameters) {
