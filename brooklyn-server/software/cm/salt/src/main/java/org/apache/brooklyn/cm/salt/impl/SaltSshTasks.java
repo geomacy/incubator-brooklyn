@@ -21,15 +21,12 @@ package org.apache.brooklyn.cm.salt.impl;
 import java.util.List;
 import java.util.Set;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
-import org.apache.brooklyn.api.mgmt.Task;
 import org.apache.brooklyn.api.mgmt.TaskAdaptable;
 import org.apache.brooklyn.api.mgmt.TaskFactory;
 import org.apache.brooklyn.core.effector.EffectorTasks;
 import org.apache.brooklyn.core.effector.ssh.SshEffectorTasks;
+import org.apache.brooklyn.core.effector.ssh.SshEffectorTasks.SshEffectorTaskFactory;
 import org.apache.brooklyn.util.collections.MutableList;
-import org.apache.brooklyn.util.collections.MutableSet;
 import org.apache.brooklyn.util.core.ResourceUtils;
 import org.apache.brooklyn.util.core.file.ArchiveTasks;
 import org.apache.brooklyn.util.core.task.TaskBuilder;
@@ -180,7 +177,7 @@ public class SaltSshTasks {
                 .summary(description);
     }
 
-    public static TaskFactory<?> stopFromStates(Set<? extends String> states, boolean force) {
+    public static SshEffectorTaskFactory<Integer> stopFromStates(Set<? extends String> states, boolean force) {
         StringBuilder stateArgs = new StringBuilder();
         for (String state : states) {
             stateArgs.append(" ").append(state).append(".stop");
@@ -188,6 +185,11 @@ public class SaltSshTasks {
         return ssh(sudo("/etc/salt/apply_states.sh -v " + stateArgs))
             .requiringExitCodeZero()
             .summary("implicit stop");
+    }
+
+    public static SshEffectorTaskFactory<Integer> findStates(Set<String> states, boolean force) {
+        return ssh(sudo("/bin/bash -c '. /etc/salt/salt_utilities.sh ; find_states  "
+            + Strings.join(states, " ") + "'"));
     }
 
 }

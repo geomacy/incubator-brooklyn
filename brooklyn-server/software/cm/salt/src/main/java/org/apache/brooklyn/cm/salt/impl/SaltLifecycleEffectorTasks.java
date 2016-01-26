@@ -20,12 +20,21 @@ package org.apache.brooklyn.cm.salt.impl;
 
 import java.util.Set;
 
+import com.google.common.collect.ImmutableMap;
+import org.apache.brooklyn.api.effector.Effector;
 import org.apache.brooklyn.api.entity.Entity;
 import org.apache.brooklyn.api.location.MachineLocation;
 import org.apache.brooklyn.api.mgmt.TaskAdaptable;
 import org.apache.brooklyn.cm.salt.SaltConfig;
+import org.apache.brooklyn.core.effector.Effectors;
+import org.apache.brooklyn.core.entity.Entities;
+import org.apache.brooklyn.core.entity.lifecycle.Lifecycle;
+import org.apache.brooklyn.core.entity.lifecycle.ServiceStateLogic;
+import org.apache.brooklyn.core.entity.trait.Startable;
 import org.apache.brooklyn.entity.software.base.SoftwareProcess;
+import org.apache.brooklyn.entity.software.base.SoftwareProcess.StopSoftwareParameters;
 import org.apache.brooklyn.entity.software.base.lifecycle.MachineLifecycleEffectorTasks;
+import org.apache.brooklyn.util.collections.MutableSet;
 import org.apache.brooklyn.util.core.config.ConfigBag;
 import org.apache.brooklyn.util.core.task.DynamicTasks;
 import org.apache.brooklyn.util.core.task.TaskBuilder;
@@ -36,6 +45,9 @@ import org.slf4j.LoggerFactory;
 import com.google.common.annotations.Beta;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Supplier;
+
+import static org.apache.brooklyn.entity.software.base.SoftwareProcess.StopSoftwareParameters.StopMode.ALWAYS;
+import static org.apache.brooklyn.entity.software.base.SoftwareProcess.StopSoftwareParameters.StopMode.NEVER;
 
 @Beta
 public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks implements SaltConfig {
@@ -133,16 +145,63 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
     }
 
     public void restart(ConfigBag parameters) {
-        final Set<? extends String> restartStates = entity().getConfig(SaltConfig.RESTART_STATES);
-        LOG.debug("Executing Salt stopProcessesAtMachine with states {}", restartStates);
-        if (restartStates.isEmpty()) {
-            restartBasedOnStartStates();
-        } else {
-            applyStates(restartStates);
+        ServiceStateLogic.setExpectedState(entity(), Lifecycle.STOPPING);
+
+        try {
+            final Set<? extends String> restartStates = entity().getConfig(SaltConfig.RESTART_STATES);
+            LOG.debug("Executing Salt stopProcessesAtMachine with states {}", restartStates);
+            if (restartStates.isEmpty()) {
+                restartBasedOnStartStates();
+            } else {
+                applyStates(restartStates);
+            }
+            ServiceStateLogic.setExpectedState(entity(), Lifecycle.RUNNING);
+        } catch (Exception e) {
+            entity().sensors().set(ServiceStateLogic.SERVICE_NOT_UP_DIAGNOSTICS,
+                ImmutableMap.<String, Object>of("restart", e.getMessage()));
+            ServiceStateLogic.setExpectedState(entity(), Lifecycle.ON_FIRE);
         }
     }
 
     private void restartBasedOnStartStates() {
-        // TODO
+        final Set<? extends String> startStates = entity().getConfig(SaltConfig.START_STATES);
+        final MutableSet<String> restartStates = addSuffix(startStates, ".restart");
+        final ProcessTaskWrapper<Integer> queue = DynamicTasks.queue(SaltSshTasks.findStates(restartStates, false));
+        queue.asTask().blockUntilEnded();
+        final String stdout = queue.getStdout();
+        final String[] foundStates = stdout.split("\\n");
+
+        if (restartStates.size() > 0 && (restartStates.size() == foundStates.length)) {
+            // each state X listed in start_states has a matching state of the form X.restart;  we apply them.
+            LOG.debug("All start_states have matching restart states, applying these");
+            applyStates(restartStates);
+
+        } else if (foundStates.length > 0) {
+            // only *some* of the states have a matching restart; we treat this as a fail
+            LOG.debug("Only some start_states have matching restart states, treating as restart failure") ;
+            throw new RuntimeException("unable to find restart state for all applied states");
+
+        } else {
+            // else we apply "stop" effector (with parameters to stop processes not machine) then "start"
+            // (and in that effector we'd fail if stop was not well-defined)
+            LOG.debug("No stop states available, invoking stop and start effectors");
+            invokeEffector(Startable.STOP, ConfigBag.newInstance()
+                .configure(StopSoftwareParameters.STOP_PROCESS_MODE, ALWAYS)
+                .configure(StopSoftwareParameters.STOP_MACHINE_MODE, NEVER));
+            invokeEffector(Startable.START, ConfigBag.EMPTY);
+        }
+    }
+
+    private void invokeEffector(Effector<Void> effector, ConfigBag config) {
+        final TaskAdaptable<Void> stop = Entities.submit(entity(), Effectors.invocation(entity(), effector, config));
+        stop.asTask().blockUntilEnded();
+    }
+
+    private MutableSet<String> addSuffix(Set<? extends String> names, String suffix) {
+        final MutableSet<String> suffixed = MutableSet.of();
+        for (String name : names) {
+            suffixed.add(name + suffix);
+        }
+        return suffixed;
     }
 }
