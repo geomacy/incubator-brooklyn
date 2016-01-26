@@ -26,7 +26,6 @@ import org.slf4j.LoggerFactory;
 
 import com.google.common.annotations.Beta;
 
-import java.util.Map;
 import java.util.Set;
 
 @Beta
@@ -41,7 +40,7 @@ public class SaltEntityImpl extends EffectorStartableImpl implements SaltEntity 
     public void init() {
         super.init();
 
-        final Set<? extends String> runList = getConfig(SaltConfig.SALT_RUN_LIST);
+        final Set<? extends String> runList = getConfig(SaltConfig.START_STATES);
         LOG.debug("Run list size is {}", runList.size());
         for (String state : runList) {
             LOG.debug("Runlist state: {} ", state);

@@ -53,9 +53,17 @@ public interface SaltConfig {
     SetConfigKey<String> SALT_FORMULAS = new SetConfigKey<>(String.class, "brooklyn.salt.formulaUrls",
             "Map of Salt formula URLs", ImmutableSet.<String>of());
 
-    @SetFromFlag("runList")
-    SetConfigKey<String> SALT_RUN_LIST = new SetConfigKey<>(String.class, "brooklyn.salt.runList",
-            "Set of Salt states to apply", ImmutableSet.<String>of());
+    @SetFromFlag("start_states")
+    SetConfigKey<String> START_STATES = new SetConfigKey<>(String.class, "brooklyn.salt.start.states",
+            "Set of Salt states to apply to start entity", ImmutableSet.<String>of());
+
+    @SetFromFlag("stop_states")
+    SetConfigKey<String> STOP_STATES = new SetConfigKey<>(String.class, "brooklyn.salt.stop.states",
+            "Set of Salt states to apply to stop entity", ImmutableSet.<String>of());
+
+    @SetFromFlag("restart_states")
+    SetConfigKey<String> RESTART_STATES = new SetConfigKey<>(String.class, "brooklyn.salt.restart.states",
+            "Set of Salt states to apply to restart entity", ImmutableSet.<String>of());
 
     MapConfigKey<Object> SALT_SSH_LAUNCH_ATTRIBUTES = new MapConfigKey<>(Object.class, "brooklyn.salt.ssh.launch.attributes", "TODO");
 

@@ -40,13 +40,13 @@ public class SaltConfigs {
 
     public static void addToRunList(EntitySpec<?> entity, String...states) {
         for (String state : states) {
-            entity.configure(SaltConfig.SALT_RUN_LIST, SetModifications.addItem(state));
+            entity.configure(SaltConfig.START_STATES, SetModifications.addItem(state));
         }
     }
 
     public static void addToRunList(EntityInternal entity, String...states) {
         for (String state : states) {
-            entity.config().set(SaltConfig.SALT_RUN_LIST, SetModifications.addItem(state));
+            entity.config().set(SaltConfig.START_STATES, SetModifications.addItem(state));
         }
     }
 

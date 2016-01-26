@@ -46,7 +46,7 @@ public class SaltConfigsTest {
     public void testAddToRunList() {
         TestApplication app = TestApplication.Factory.newManagedInstanceForTests();
         SaltConfigs.addToRunList(app, "a", "b");
-        Set<? extends String> runs = app.getConfig(SaltConfig.SALT_RUN_LIST);
+        Set<? extends String> runs = app.getConfig(SaltConfig.START_STATES);
         Assert.assertEquals(runs, ImmutableSet.of("a", "b"));
     }
 

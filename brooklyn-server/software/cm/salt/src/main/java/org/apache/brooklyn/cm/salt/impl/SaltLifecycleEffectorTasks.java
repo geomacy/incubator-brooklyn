@@ -26,6 +26,7 @@ import org.apache.brooklyn.api.mgmt.TaskAdaptable;
 import org.apache.brooklyn.cm.salt.SaltConfig;
 import org.apache.brooklyn.entity.software.base.SoftwareProcess;
 import org.apache.brooklyn.entity.software.base.lifecycle.MachineLifecycleEffectorTasks;
+import org.apache.brooklyn.util.core.config.ConfigBag;
 import org.apache.brooklyn.util.core.task.DynamicTasks;
 import org.apache.brooklyn.util.core.task.TaskBuilder;
 import org.apache.brooklyn.util.core.task.system.ProcessTaskWrapper;
@@ -54,11 +55,6 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
         return "salt tasks submitted (" + mode + ")";
     }
 
-    @Override
-    protected String stopProcessesAtMachine() {
-        // TODO Auto-generated method stub
-        return null;
-    }
 
     @Override
     protected StopMachineDetails<Integer> stopAnyProvisionedMachines() {
@@ -73,7 +69,7 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
 
     protected void startWithSshAsync() {
 
-        final Set<? extends String> runList = entity().getConfig(SaltConfig.SALT_RUN_LIST);
+        final Set<? extends String> runList = entity().getConfig(SaltConfig.START_STATES);
 
         final Set<? extends String> formulas = entity()
             .getConfig(SaltConfig.SALT_FORMULAS);
@@ -88,12 +84,12 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
 
             final TaskBuilder<Object> formulaTasks = TaskBuilder.builder().displayName("installing formulas");
             for (String url : formulas) {
-                formulaTasks.add(SaltSshTasks.installSaltFormula(url.toString(), false).newTask());
+                formulaTasks.add(SaltSshTasks.installSaltFormula(url, false).newTask());
             }
             DynamicTasks.queue(formulaTasks.build());
         }
 
-        final TaskAdaptable applyState = SaltSshTasks.applyState(false);
+        final TaskAdaptable applyState = SaltSshTasks.applyTopState(false);
         DynamicTasks.queue(applyState);
         applyState.asTask().blockUntilEnded();
 
@@ -113,5 +109,45 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
     protected void postStartCustom() {
         // TODO: check for package installed?
         entity().sensors().set(SoftwareProcess.SERVICE_UP, true);
+    }
+
+
+    @Override
+    protected String stopProcessesAtMachine() {
+        final Set<? extends String> stopStates = entity().getConfig(SaltConfig.STOP_STATES);
+        LOG.debug("Executing Salt stopProcessesAtMachine with states {}", stopStates);
+        if (stopStates.isEmpty()) {
+            stopBasedOnStartStates();
+        } else {
+            applyStates(stopStates);
+        }
+        return null;
+    }
+
+    private void applyStates(Set<? extends String> stopStates) {
+        for (String state : stopStates) {
+            DynamicTasks.queue(SaltSshTasks.applyState(state, false));
+        }
+
+    }
+
+    private void stopBasedOnStartStates() {
+        // TODO - for all start states S check if there is a S.action state
+        // if so apply all S.action
+        // if not set on fire
+    }
+
+    public void restart(ConfigBag parameters) {
+        final Set<? extends String> restartStates = entity().getConfig(SaltConfig.RESTART_STATES);
+        LOG.debug("Executing Salt stopProcessesAtMachine with states {}", restartStates);
+        if (restartStates.isEmpty()) {
+            restartBasedOnStartStates();
+        } else {
+            applyStates(restartStates);
+        }
+    }
+
+    private void restartBasedOnStartStates() {
+        // TODO
     }
 }

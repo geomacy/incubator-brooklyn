@@ -131,8 +131,13 @@ public class SaltSshTasks {
 
     }
 
-    public static TaskAdaptable applyState(boolean force) {
+    public static TaskAdaptable applyTopState(boolean force) {
         return SshEffectorTasks.ssh(sudo("salt-call --local state.apply")).summary("salt state.apply").newTask();
+    }
+
+    public static TaskAdaptable applyState(String state, boolean force) {
+        final String commandName = "state.apply " + state;
+        return SshEffectorTasks.ssh(sudo("salt-call --local " + commandName)).summary(commandName).newTask();
     }
 
     public static ProcessTaskWrapper<String> retrieveHighstate() {
