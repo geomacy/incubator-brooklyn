@@ -18,8 +18,9 @@
  */
 package org.apache.brooklyn.cm.salt.impl;
 
-import java.util.Set;
-
+import com.google.common.annotations.Beta;
+import com.google.common.base.Preconditions;
+import com.google.common.base.Supplier;
 import com.google.common.collect.ImmutableMap;
 import org.apache.brooklyn.api.effector.Effector;
 import org.apache.brooklyn.api.entity.Entity;
@@ -27,6 +28,7 @@ import org.apache.brooklyn.api.location.MachineLocation;
 import org.apache.brooklyn.api.mgmt.TaskAdaptable;
 import org.apache.brooklyn.cm.salt.SaltConfig;
 import org.apache.brooklyn.core.effector.Effectors;
+import org.apache.brooklyn.core.effector.ssh.SshEffectorTasks;
 import org.apache.brooklyn.core.entity.Entities;
 import org.apache.brooklyn.core.entity.lifecycle.Lifecycle;
 import org.apache.brooklyn.core.entity.lifecycle.ServiceStateLogic;
@@ -42,9 +44,7 @@ import org.apache.brooklyn.util.core.task.system.ProcessTaskWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.google.common.annotations.Beta;
-import com.google.common.base.Preconditions;
-import com.google.common.base.Supplier;
+import java.util.Set;
 
 import static org.apache.brooklyn.entity.software.base.SoftwareProcess.StopSoftwareParameters.StopMode.ALWAYS;
 import static org.apache.brooklyn.entity.software.base.SoftwareProcess.StopSoftwareParameters.StopMode.NEVER;
@@ -97,7 +97,7 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
             DynamicTasks.queue(formulaTasks.build());
         }
 
-        final TaskAdaptable applyState = SaltSshTasks.applyTopState(false);
+        final TaskAdaptable applyState = SaltSshTasks.applyTopStates(false);
         DynamicTasks.queue(applyState);
         applyState.asTask().blockUntilEnded();
 
@@ -132,8 +132,8 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
         return null;
     }
 
-    private void applyStates(Set<? extends String> stopStates) {
-        for (String state : stopStates) {
+    private void applyStates(Set<? extends String> states) {
+        for (String state : states) {
             DynamicTasks.queue(SaltSshTasks.applyState(state, false));
         }
 
@@ -141,7 +141,14 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
 
     private void stopBasedOnStartStates() {
         final Set<? extends String> startStates = entity().getConfig(SaltConfig.START_STATES);
-        DynamicTasks.queue(SaltSshTasks.stopFromStates(startStates, false));
+        final MutableSet<String> stopStates = addSuffix(startStates, ".stop");
+        final ProcessTaskWrapper<Integer> checkStops =
+            queueAndBlock(SaltSshTasks.verifyStates(stopStates, "check stop states", false));
+        if (0 != checkStops.getExitCode()) {
+            throw new RuntimeException("No stop_states configured and not all start_states have matching stop states");
+        } else {
+            applyStates(stopStates);
+        }
     }
 
     public void restart(ConfigBag parameters) {
@@ -149,7 +156,7 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
 
         try {
             final Set<? extends String> restartStates = entity().getConfig(SaltConfig.RESTART_STATES);
-            LOG.debug("Executing Salt stopProcessesAtMachine with states {}", restartStates);
+            LOG.debug("Executing Salt restart with states {}", restartStates);
             if (restartStates.isEmpty()) {
                 restartBasedOnStartStates();
             } else {
@@ -166,9 +173,9 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
     private void restartBasedOnStartStates() {
         final Set<? extends String> startStates = entity().getConfig(SaltConfig.START_STATES);
         final MutableSet<String> restartStates = addSuffix(startStates, ".restart");
-        final ProcessTaskWrapper<Integer> queue = DynamicTasks.queue(SaltSshTasks.findStates(restartStates, false));
-        queue.asTask().blockUntilEnded();
-        final String stdout = queue.getStdout();
+        final ProcessTaskWrapper<Integer> queued =
+            queueAndBlock(SaltSshTasks.findStates(restartStates, "check restart states", false));
+        final String stdout = queued.getStdout();
         final String[] foundStates = stdout.split("\\n");
 
         if (restartStates.size() > 0 && (restartStates.size() == foundStates.length)) {
@@ -190,6 +197,12 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
                 .configure(StopSoftwareParameters.STOP_MACHINE_MODE, NEVER));
             invokeEffector(Startable.START, ConfigBag.EMPTY);
         }
+    }
+
+    private ProcessTaskWrapper<Integer> queueAndBlock(SshEffectorTasks.SshEffectorTaskFactory<Integer> checkStops) {
+        final ProcessTaskWrapper<Integer> queued = DynamicTasks.queue(checkStops);
+        queued.asTask().blockUntilEnded();
+        return queued;
     }
 
     private void invokeEffector(Effector<Void> effector, ConfigBag config) {

@@ -27,13 +27,6 @@ function verify_states () {
     done
 }
 
-function apply_states () {
-    echo applying states "$@"
-    for state in "$@" ; do
-        salt-call --local state.apply $state
-    done
-}
-
 function find_states () {
     for state in "$@" ; do
       if state_exists $state ; then

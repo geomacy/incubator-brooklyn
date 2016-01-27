@@ -100,7 +100,7 @@ public class SaltHighstate {
 
             final AttributeSensor<Map<String, Map<String, Object>>> newSensor =
                 Sensors.newSensor(STATE_FUNCTION_TYPE, HIGHSTATE_SENSOR_PREFIX + "." + id,
-                    stateModule + "." + stateFunction + " details for Salt state id " + id);
+                    id + ": " + stateModule + "." + stateFunction);
             entity.sensors().set(newSensor, sensorValue);
 
             LOG.debug("Found {} state module {}", id, sensorName);
