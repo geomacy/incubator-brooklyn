@@ -16,6 +16,11 @@
 # specific language governing permissions and limitations
 # under the License.
 
+function salt_installed () {
+    [ -f install_salt.sh ]
+}
+
+
 function state_exists () {
   salt-call --local state.sls test=True $1 2>/dev/null | grep Succeeded >/dev/null 2>&1
 }

@@ -58,6 +58,10 @@ public class SaltSshTasks {
         return ssh(commands).summary("install salt");
     }
 
+    public static SshEffectorTaskFactory<Integer> isSaltInstalled(boolean force) {
+        return invokeSaltUtility("salt_installed", null, "check installed");
+    }
+
     public static TaskFactory<?> configureForMasterlessOperation(boolean force) {
         // TODO: ignore force?
         return ssh(sudo("sed -i '/^#file_client/c file_client: local' /etc/salt/minion"))
@@ -93,7 +97,7 @@ public class SaltSshTasks {
                 tb.add(ArchiveTasks.deploy(null, null, formulaUrl, EffectorTasks.findSshMachine(),
                     tempDirectoryForUnpack, false, null, null).newTask());
 
-                // TODO move this into salt_utilities.yaml
+                // TODO move this into salt_utilities.sh
                 String installCmd = BashCommands.chain(
                     "cd "+tempDirectoryForUnpack,
                     "EXPANDED_DIR=`ls`",
@@ -172,20 +176,19 @@ public class SaltSshTasks {
     }
 
     public static SshEffectorTaskFactory<Integer> verifyStates(Set<String> states, String description, boolean force) {
-        return invokeStatesUtility("verify_states", states, description);
+        return invokeSaltUtility("verify_states", Strings.join(states, " "), description);
     }
 
     public static SshEffectorTaskFactory<Integer> findStates(Set<String> states, String description, boolean force) {
-        return invokeStatesUtility("find_states", states, description);
+        return invokeSaltUtility("find_states", Strings.join(states, " "), description);
     }
 
-    private static SshEffectorTaskFactory<Integer> invokeStatesUtility(String functionName, Set<String> states,
-            String description) {
+    // Simple invocation of a function from salt_utilities.sh, allowing it to fail.
+    // Uses single quoted bash command, so args mustn't contain single quotes.
+    private static SshEffectorTaskFactory<Integer> invokeSaltUtility(String functionName, String args, String desc) {
 
-        return ssh(sudo("/bin/bash -c '. /etc/salt/salt_utilities.sh ; " + functionName + " "
-            + Strings.join(states, " ") + "'"))
+        return ssh(sudo("/bin/bash -c '. /etc/salt/salt_utilities.sh ; " + functionName + " " + args + "'"))
             .allowingNonZeroExitCode()
-            .summary(description);
+            .summary(desc);
     }
-
 }

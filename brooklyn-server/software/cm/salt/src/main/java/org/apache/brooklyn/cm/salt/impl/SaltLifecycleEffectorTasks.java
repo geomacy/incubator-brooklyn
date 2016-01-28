@@ -81,20 +81,29 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
         final Set<? extends String> formulas = entity()
             .getConfig(SaltConfig.SALT_FORMULAS);
 
-        DynamicTasks.queue(
-            SaltSshTasks.installSalt(false),
-            SaltSshTasks.installSaltUtilities(false),
-            SaltSshTasks.configureForMasterlessOperation(false),
-            SaltSshTasks.installTopFile(startStates, false));
 
-        if (formulas.size() > 0) {
-            DynamicTasks.queue(SaltSshTasks.enableFileRoots(false));
+        final ProcessTaskWrapper<Integer> installedAlready = queueAndBlock(SaltSshTasks.isSaltInstalled(false));
 
-            final TaskBuilder<Object> formulaTasks = TaskBuilder.builder().displayName("installing formulas");
-            for (String url : formulas) {
-                formulaTasks.add(SaltSshTasks.installSaltFormula(url, false).newTask());
-            }
-            DynamicTasks.queue(formulaTasks.build());
+        if (0 != installedAlready.getExitCode()) {
+            DynamicTasks.queue("install", new Runnable() {
+                public void run() {
+                    DynamicTasks.queue(
+                        SaltSshTasks.installSalt(false),
+                        SaltSshTasks.installSaltUtilities(false),
+                        SaltSshTasks.configureForMasterlessOperation(false),
+                        SaltSshTasks.installTopFile(startStates, false));
+
+                    if (formulas.size() > 0) {
+                        DynamicTasks.queue(SaltSshTasks.enableFileRoots(false));
+
+                        final TaskBuilder<Object> formulaTasks = TaskBuilder.builder().displayName("install formulas");
+                        for (String url : formulas) {
+                            formulaTasks.add(SaltSshTasks.installSaltFormula(url, false).newTask());
+                        }
+                        DynamicTasks.queue(formulaTasks.build());
+                    }
+                }
+            });
         }
 
         final TaskAdaptable applyState = SaltSshTasks.applyTopStates(false);
@@ -102,7 +111,6 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
         applyState.asTask().blockUntilEnded();
 
         connectSensors();
-
     }
 
     private void connectSensors() {
