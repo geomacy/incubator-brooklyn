@@ -24,7 +24,10 @@ import org.apache.brooklyn.api.entity.ImplementedBy;
 import org.apache.brooklyn.api.sensor.AttributeSensor;
 import org.apache.brooklyn.cm.salt.impl.SaltEntityImpl;
 import org.apache.brooklyn.config.ConfigKey;
+import org.apache.brooklyn.core.annotation.Effector;
+import org.apache.brooklyn.core.annotation.EffectorParam;
 import org.apache.brooklyn.core.config.ConfigKeys;
+import org.apache.brooklyn.core.effector.MethodEffector;
 import org.apache.brooklyn.core.entity.BrooklynConfigKeys;
 import org.apache.brooklyn.core.sensor.Sensors;
 import org.apache.brooklyn.entity.software.base.SoftwareProcess;
@@ -38,10 +41,16 @@ public interface SaltEntity extends SoftwareProcess, SaltConfig {
 
     @SetFromFlag("version")
     ConfigKey<String> SUGGESTED_VERSION = ConfigKeys.newConfigKeyWithDefault(
-            BrooklynConfigKeys.SUGGESTED_VERSION, "stable");
+        BrooklynConfigKeys.SUGGESTED_VERSION, "stable");
 
     AttributeSensor<List<String>> STATES = Sensors.newSensor(new TypeToken<List<String>>() {}, "salt.states",
         "Salt Highstate states");
 
+    MethodEffector<String> SALT_CALL = new MethodEffector<>(SaltEntity.class, "saltCall");
+
+    @Effector(description = "Invoke a Salt command")
+    String saltCall(
+        @EffectorParam(name = "spec", description = "Name and optional arguments of a Salt command") String spec);
 
 }
+

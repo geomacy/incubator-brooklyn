@@ -18,13 +18,14 @@
  */
 package org.apache.brooklyn.cm.salt.impl;
 
+import com.google.common.annotations.Beta;
 import org.apache.brooklyn.cm.salt.SaltConfig;
 import org.apache.brooklyn.cm.salt.SaltEntity;
 import org.apache.brooklyn.entity.stock.EffectorStartableImpl;
+import org.apache.brooklyn.util.core.task.DynamicTasks;
+import org.apache.brooklyn.util.core.task.system.ProcessTaskWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import com.google.common.annotations.Beta;
 
 import java.util.Set;
 
@@ -62,4 +63,14 @@ public class SaltEntityImpl extends EffectorStartableImpl implements SaltEntity 
         // TODO: noop for now;
     }
 
+    @Override
+    public String saltCall(String spec) {
+        final ProcessTaskWrapper<Integer> command = DynamicTasks.queue(SaltSshTasks.saltCall(spec));
+        command.asTask().blockUntilEnded();
+        if (0 == command.getExitCode()) {
+            return command.getStdout();
+        } else {
+            throw new RuntimeException("Command (" + spec + ")  failed with stderr:\n" + command.getStderr() + "\n");
+        }
+    }
 }

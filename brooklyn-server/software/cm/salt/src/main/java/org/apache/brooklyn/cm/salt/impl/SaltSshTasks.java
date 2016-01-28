@@ -147,6 +147,9 @@ public class SaltSshTasks {
         final String commandName = "state.apply " + state;
         return ssh(sudo("salt-call --local " + commandName)).summary(commandName).newTask();
     }
+    public static ProcessTaskWrapper<Integer> saltCall(String command) {
+        return ssh(sudo("salt-call --local " + command)).summary(command).allowingNonZeroExitCode().newTask();
+    }
 
     public static ProcessTaskWrapper<String> retrieveHighstate() {
         return ssh(sudo("salt-call --local state.show_highstate --out=yaml"))
