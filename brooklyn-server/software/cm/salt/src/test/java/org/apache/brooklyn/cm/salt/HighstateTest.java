@@ -68,18 +68,18 @@ public class HighstateTest {
             .contains("apache-reload")
             .contains("apache-restart");
 
-        final Map<String, Map<String, Object>> apachePkgInstalled =
-            entity.sensors().get(Sensors.newSensor(SaltHighstate.STATE_FUNCTION_TYPE, "salt.state.apache", ""));
+        final Map<String, Object> apachePkgInstalled =
+            entity.sensors().get(Sensors.newSensor(SaltHighstate.STATE_FUNCTION_TYPE, "salt.state.apache.pkg.installed", ""));
         assertThat(apachePkgInstalled).isNotNull();
-        assertThat(apachePkgInstalled.get("pkg.installed").get("name")).isEqualTo("apache2");
-        assertThat(apachePkgInstalled.get("pkg.installed").get("order")).isEqualTo(10000);
+        assertThat(apachePkgInstalled.get("name")).isEqualTo("apache2");
+        assertThat(apachePkgInstalled.get("order")).isEqualTo(10000);
 
-        final Map<String, Map<String, Object>> apacheServiceRunning =
-            entity.sensors().get(Sensors.newSensor(SaltHighstate.STATE_FUNCTION_TYPE, "salt.state.apache", ""));
+        final Map<String, Object> apacheServiceRunning =
+            entity.sensors().get(Sensors.newSensor(SaltHighstate.STATE_FUNCTION_TYPE, "salt.state.apache.service.running", ""));
         assertThat(apacheServiceRunning).isNotNull();
-        assertThat(apacheServiceRunning.get("service.running").get("name")).isEqualTo("apache2");
-        assertThat(apacheServiceRunning.get("service.running").get("order")).isEqualTo(10001);
-        assertThat(apacheServiceRunning.get("service.running").get("enable"));
+        assertThat(apacheServiceRunning.get("name")).isEqualTo("apache2");
+        assertThat(apacheServiceRunning.get("order")).isEqualTo(10001);
+        assertThat(apacheServiceRunning.get("enable"));
     }
 
 

@@ -90,7 +90,7 @@ public class SaltSshTasks {
         return new TaskFactory<TaskAdaptable<?>>() {
             @Override
             public TaskAdaptable<?> newTask() {
-                TaskBuilder<Void> tb = Tasks.<Void>builder().displayName("install formula " + formulaUrl);
+                TaskBuilder<Void> tb = Tasks.<Void>builder().displayName(formulaUrl);
 
                 String tempDirectoryForUnpack = "/tmp/download-" + Identifiers.makeRandomId(12);
 

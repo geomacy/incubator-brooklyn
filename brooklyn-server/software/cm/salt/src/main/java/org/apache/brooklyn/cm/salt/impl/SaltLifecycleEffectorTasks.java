@@ -41,6 +41,7 @@ import org.apache.brooklyn.util.core.config.ConfigBag;
 import org.apache.brooklyn.util.core.task.DynamicTasks;
 import org.apache.brooklyn.util.core.task.TaskBuilder;
 import org.apache.brooklyn.util.core.task.system.ProcessTaskWrapper;
+import org.apache.brooklyn.util.text.Strings;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -184,14 +185,14 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
         final ProcessTaskWrapper<Integer> queued =
             queueAndBlock(SaltSshTasks.findStates(restartStates, "check restart states", false));
         final String stdout = queued.getStdout();
-        final String[] foundStates = stdout.split("\\n");
+        String[] foundStates = Strings.isNonBlank(stdout) ? stdout.split("\\n") : null;
 
-        if (restartStates.size() > 0 && (restartStates.size() == foundStates.length)) {
+        if (restartStates.size() > 0 && foundStates != null && (restartStates.size() == foundStates.length)) {
             // each state X listed in start_states has a matching state of the form X.restart;  we apply them.
             LOG.debug("All start_states have matching restart states, applying these");
             applyStates(restartStates);
 
-        } else if (foundStates.length > 0) {
+        } else if (foundStates != null && foundStates.length > 0) {
             // only *some* of the states have a matching restart; we treat this as a fail
             LOG.debug("Only some start_states have matching restart states, treating as restart failure") ;
             throw new RuntimeException("unable to find restart state for all applied states");

@@ -18,7 +18,6 @@
  */
 package org.apache.brooklyn.cm.salt.impl;
 
-import com.google.common.collect.ImmutableList;
 import com.google.common.reflect.TypeToken;
 import org.apache.brooklyn.api.entity.Entity;
 import org.apache.brooklyn.api.sensor.AttributeSensor;
@@ -42,8 +41,8 @@ public class SaltHighstate {
 
     public static final String HIGHSTATE_SENSOR_PREFIX = "salt.state";
 
-    public static TypeToken<Map<String, Map<String, Object>>> STATE_FUNCTION_TYPE =
-        new TypeToken<Map<String, Map<String, Object>>>() {};
+    public static TypeToken<Map<String, Object>> STATE_FUNCTION_TYPE =
+        new TypeToken<Map<String, Object>>() {};
 
     private SaltHighstate() {}
 
@@ -80,7 +79,6 @@ public class SaltHighstate {
     private static void applyStateSensor(String id, Object stateData, Entity entity) {
         addStateSensor(id, entity);
         Map<String, List<Object>> stateInfo = (Map<String, List<Object>>)stateData;
-        Map<String, Map<String, Object>> sensorValue = MutableMap.of();
         for (String stateModule : stateInfo.keySet()) {
             if (isSaltInternal(stateModule)) {
                 continue;
@@ -95,16 +93,18 @@ public class SaltHighstate {
                     stateFunction = entry.toString();
                 }
             }
-            final String sensorName = stateModule + "." + stateFunction;
-            sensorValue.put(sensorName, moduleSettings);
 
-            final AttributeSensor<Map<String, Map<String, Object>>> newSensor =
-                Sensors.newSensor(STATE_FUNCTION_TYPE, HIGHSTATE_SENSOR_PREFIX + "." + id,
-                    id + ": " + stateModule + "." + stateFunction);
-            entity.sensors().set(newSensor, sensorValue);
+            final String name = sensorName(id, stateModule, stateFunction);
+            final AttributeSensor<Map<String, Object>> newSensor =
+                Sensors.newSensor(STATE_FUNCTION_TYPE, HIGHSTATE_SENSOR_PREFIX + "." + name, name);
+            entity.sensors().set(newSensor, moduleSettings);
 
-            LOG.debug("Found {} state module {}", id, sensorName);
+            LOG.debug("Sensor set for: {}", moduleSettings);
         }
+    }
+
+    private static String sensorName(String... parts) {
+        return Strings.join(parts, ".");
     }
 
 
