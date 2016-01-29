@@ -16,10 +16,43 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
+function edit_pillar_roots () {
+    cat <<EOI
+1
+/^#.*srv.pillar
+a
+base:
+  - /srv/pillar
+
+.
+wq
+EOI
+}
+
+function init_pillar_top () {
+cat > /srv/pillar/top.sls <<EOI
+base:
+  '*':
+EOI
+}
+
+function add_pillar_to_top () {
+    local pillar=$1
+    { cat /srv/pillar/top.sls ; echo "    - $pillar" ; } > /tmp/top.sls
+    mv /tmp/top.sls /srv/pillar/top.sls
+}
+
+function init_pillar_config () {
+    mkdir -p /srv/pillar
+    edit_pillar_roots | ed /etc/salt/minion
+    init_pillar_top
+}
+
+
 function salt_installed () {
     [ -f install_salt.sh ]
 }
-
 
 function state_exists () {
   salt-call --local state.sls test=True $1 2>/dev/null | grep Succeeded >/dev/null 2>&1
@@ -39,3 +72,4 @@ function find_states () {
       fi
     done
 }
+

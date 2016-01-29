@@ -29,6 +29,7 @@ import org.apache.brooklyn.util.core.file.ArchiveTasks;
 import org.apache.brooklyn.util.core.task.TaskBuilder;
 import org.apache.brooklyn.util.core.task.Tasks;
 import org.apache.brooklyn.util.core.task.ssh.SshPutTaskFactory;
+import org.apache.brooklyn.util.core.task.system.ProcessTaskFactory;
 import org.apache.brooklyn.util.core.task.system.ProcessTaskWrapper;
 import org.apache.brooklyn.util.ssh.BashCommands;
 import org.apache.brooklyn.util.text.Identifiers;
@@ -51,15 +52,15 @@ public class SaltSshTasks {
 
     public static TaskFactory<?> installSalt(boolean force) {
         // TODO: ignore force?
-        List<String> commands = MutableList.<String>builder()
-            .add(BashCommands.commandToDownloadUrlAs("https://bootstrap.saltstack.com", "install_salt.sh"))
-            .add(sudo("sh install_salt.sh"))
-            .build();
-        return ssh(commands).summary("install salt");
+        return sshCommands(
+            BashCommands.commandToDownloadUrlAs("https://bootstrap.saltstack.com", "install_salt.sh"),
+            sudo("sh install_salt.sh")
+        )
+        .summary("install salt");
     }
 
     public static SshEffectorTaskFactory<Integer> isSaltInstalled(boolean force) {
-        return invokeSaltUtility("salt_installed", null, "check installed");
+        return invokeSaltUtility("salt_installed", null, true).summary("check installed");
     }
 
     public static TaskFactory<?> configureForMasterlessOperation(boolean force) {
@@ -70,20 +71,42 @@ public class SaltSshTasks {
 
 
     public static TaskFactory<?> enableFileRoots(boolean force) {
-        List<String> commandLines = MutableList.<String>builder()
-            .add("grep ^file_roots /etc/salt/minion || {")
-            .add("cat /etc/salt/minion > /tmp/minion.update")
-            .add("cat >> /tmp/minion.update  << BROOKLYN_EOF")
-            .add("file_roots:")
-            .add("  base:")
-            .add("    - /srv/salt/")
-            .add("BROOKLYN_EOF")
-            .add(sudo("mv /tmp/minion.update /etc/salt/minion"))
-            .add("}")
-            .build();
-        return ssh(Strings.join(commandLines, "\n"))
+        return sshCommands(
+                "grep ^file_roots /etc/salt/minion || {",
+                "cat /etc/salt/minion > /tmp/minion.update",
+                "cat >> /tmp/minion.update  << BROOKLYN_EOF",
+                "file_roots:",
+                "  base:",
+                "    - /srv/salt/",
+                "BROOKLYN_EOF",
+                sudo("mv /tmp/minion.update /etc/salt/minion"),
+                "}"
+            )
             .requiringExitCodeZero()
             .summary("enable file_roots");
+    }
+
+
+    public static TaskFactory<?>  addPillarToTop(String pillar, boolean b) {
+        return invokeSaltUtility("add_pillar_to_top", pillar, false)
+            .summary("Add pillar " + pillar + " to top");
+    }
+
+    public static TaskFactory<?>  installSaltPillar(final String pillarUrl, boolean force) {
+        return new TaskFactory<TaskAdaptable<?>>() {
+            @Override
+            public TaskAdaptable<?> newTask() {
+                TaskBuilder<Void> tb = Tasks.<Void>builder().displayName(pillarUrl);
+                String tempDownloadDir = "/tmp/download-" + Identifiers.makeRandomId(12);
+
+                tb.add(ArchiveTasks.deploy(null,null,pillarUrl,EffectorTasks.findSshMachine(),
+                    tempDownloadDir,false,null,null).newTask());
+
+                tb.add(ssh("cd " + tempDownloadDir + " ; " + sudo("mv * /srv/pillar")).newTask());
+
+                return tb.build();
+            }
+        };
     }
 
     public static TaskFactory<?> installSaltFormula(final String formulaUrl, boolean force) {
@@ -139,17 +162,18 @@ public class SaltSshTasks {
 
     }
 
-    public static TaskAdaptable applyTopStates(boolean force) {
-        return ssh(sudo("salt-call --local state.apply")).summary("apply top states").newTask();
+    public static ProcessTaskFactory<Integer> applyTopStates(boolean force) {
+        return  ssh(sudo("salt-call --local state.apply")).summary("apply top states");
     }
-
-    public static TaskAdaptable applyState(String state, boolean force) {
+    public static ProcessTaskWrapper<Integer> applyState(String state, boolean force) {
         final String commandName = "state.apply " + state;
         return ssh(sudo("salt-call --local " + commandName)).summary(commandName).newTask();
     }
+
     public static ProcessTaskWrapper<Integer> saltCall(String command) {
         return ssh(sudo("salt-call --local " + command)).summary(command).allowingNonZeroExitCode().newTask();
     }
+
 
     public static ProcessTaskWrapper<String> retrieveHighstate() {
         return ssh(sudo("salt-call --local state.show_highstate --out=yaml"))
@@ -157,7 +181,6 @@ public class SaltSshTasks {
             .requiringZeroAndReturningStdout()
             .newTask();
     }
-
 
     public static TaskFactory<?> installSaltUtilities(boolean force) {
         return new TaskFactory<TaskAdaptable<?>>() {
@@ -178,20 +201,34 @@ public class SaltSshTasks {
                 .summary(description);
     }
 
-    public static SshEffectorTaskFactory<Integer> verifyStates(Set<String> states, String description, boolean force) {
-        return invokeSaltUtility("verify_states", Strings.join(states, " "), description);
+    public static SshEffectorTaskFactory<Integer> verifyStates(Set<String> states, boolean force) {
+        return invokeSaltUtility("verify_states", Strings.join(states, " "), true);
     }
 
-    public static SshEffectorTaskFactory<Integer> findStates(Set<String> states, String description, boolean force) {
-        return invokeSaltUtility("find_states", Strings.join(states, " "), description);
+    public static SshEffectorTaskFactory<Integer> findStates(Set<String> states, boolean force) {
+        return invokeSaltUtility("find_states", Strings.join(states, " "), true);
     }
 
-    // Simple invocation of a function from salt_utilities.sh, allowing it to fail.
+    // Simple invocation of a function from salt_utilities.sh, optionally allowing it to fail.
     // Uses single quoted bash command, so args mustn't contain single quotes.
-    private static SshEffectorTaskFactory<Integer> invokeSaltUtility(String functionName, String args, String desc) {
+    public static SshEffectorTaskFactory<Integer> invokeSaltUtility(String functionName, String args, boolean permitFailure) {
 
-        return ssh(sudo("/bin/bash -c '. /etc/salt/salt_utilities.sh ; " + functionName + " " + args + "'"))
-            .allowingNonZeroExitCode()
-            .summary(desc);
+        final SshEffectorTaskFactory<Integer> taskFactory =
+            ssh(sudo("/bin/bash -c '. /etc/salt/salt_utilities.sh ; " + functionName + " " + args + "'"));
+
+        if (permitFailure) {
+            taskFactory.allowingNonZeroExitCode();
+        } else {
+            taskFactory.requiringExitCodeZero();
+        }
+        return taskFactory;
+
+    }
+
+    public static SshEffectorTaskFactory<Integer> sshCommands(String line, String... lines) {
+        final MutableList.Builder<String> builder = MutableList.<String>builder()
+            .add(line);
+        builder.addAll(lines);
+        return ssh(Strings.join(builder.build(), "\n"));
     }
 }

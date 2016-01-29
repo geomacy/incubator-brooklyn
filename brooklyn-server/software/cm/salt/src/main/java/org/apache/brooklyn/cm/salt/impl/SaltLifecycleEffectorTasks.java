@@ -28,7 +28,6 @@ import org.apache.brooklyn.api.location.MachineLocation;
 import org.apache.brooklyn.api.mgmt.TaskAdaptable;
 import org.apache.brooklyn.cm.salt.SaltConfig;
 import org.apache.brooklyn.core.effector.Effectors;
-import org.apache.brooklyn.core.effector.ssh.SshEffectorTasks;
 import org.apache.brooklyn.core.entity.Entities;
 import org.apache.brooklyn.core.entity.lifecycle.Lifecycle;
 import org.apache.brooklyn.core.entity.lifecycle.ServiceStateLogic;
@@ -40,6 +39,7 @@ import org.apache.brooklyn.util.collections.MutableSet;
 import org.apache.brooklyn.util.core.config.ConfigBag;
 import org.apache.brooklyn.util.core.task.DynamicTasks;
 import org.apache.brooklyn.util.core.task.TaskBuilder;
+import org.apache.brooklyn.util.core.task.system.ProcessTaskFactory;
 import org.apache.brooklyn.util.core.task.system.ProcessTaskWrapper;
 import org.apache.brooklyn.util.text.Strings;
 import org.slf4j.Logger;
@@ -78,9 +78,9 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
     protected void startWithSshAsync() {
 
         final Set<? extends String> startStates = entity().getConfig(SaltConfig.START_STATES);
-
-        final Set<? extends String> formulas = entity()
-            .getConfig(SaltConfig.SALT_FORMULAS);
+        final Set<? extends String> formulas = entity().getConfig(SaltConfig.SALT_FORMULAS);
+        final Set<? extends String> pillars = entity().getConfig(SaltConfig.SALT_PILLARS);
+        final Set<? extends String> pillarUrls = entity().getConfig(SaltConfig.SALT_PILLAR_URLS);
 
 
         final ProcessTaskWrapper<Integer> installedAlready = queueAndBlock(SaltSshTasks.isSaltInstalled(false));
@@ -94,24 +94,53 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
                         SaltSshTasks.configureForMasterlessOperation(false),
                         SaltSshTasks.installTopFile(startStates, false));
 
-                    if (formulas.size() > 0) {
-                        DynamicTasks.queue(SaltSshTasks.enableFileRoots(false));
-
-                        final TaskBuilder<Object> formulaTasks = TaskBuilder.builder().displayName("install formulas");
-                        for (String url : formulas) {
-                            formulaTasks.add(SaltSshTasks.installSaltFormula(url, false).newTask());
-                        }
-                        DynamicTasks.queue(formulaTasks.build());
-                    }
+                    installFormulas(formulas);
+                    installPillars(pillars, pillarUrls);
                 }
             });
         }
 
-        final TaskAdaptable applyState = SaltSshTasks.applyTopStates(false);
-        DynamicTasks.queue(applyState);
-        applyState.asTask().blockUntilEnded();
+        startSalt();
 
         connectSensors();
+    }
+
+    private void startSalt() {
+        final ProcessTaskWrapper<Integer> topStates = queueAndBlock(SaltSshTasks.applyTopStates(false));
+
+        // Salt apply returns exit code 0 even upon failure so check the stderr.
+        if (Strings.isNonBlank(topStates.getStderr())) {
+            final String error = Strings.getFirstLine(topStates.getStderr());
+            LOG.warn("Encountered error in applying Salt top states: {}", topStates.getStderr());
+            throw new RuntimeException(error);
+        }
+    }
+
+    private void installFormulas(Set<? extends String> formulas) {
+        if (formulas.size() > 0) {
+            DynamicTasks.queue(SaltSshTasks.enableFileRoots(false));
+
+            final TaskBuilder<Object> formulaTasks = TaskBuilder.builder().displayName("install formulas");
+            for (String url : formulas) {
+                formulaTasks.add(SaltSshTasks.installSaltFormula(url, false).newTask());
+            }
+            DynamicTasks.queue(formulaTasks.build());
+        }
+    }
+
+    private void installPillars(Set<? extends String> pillars, Set<? extends String> pillarUrls) {
+        if (pillarUrls.size() > 0) {
+            final TaskBuilder<Object> pillarTasks = TaskBuilder.builder().displayName("install pillars");
+            pillarTasks.add(SaltSshTasks.invokeSaltUtility("init_pillar_config", null, false)
+                .summary("init pillar config").newTask());
+            for (String pillar : pillars) {
+                pillarTasks.add(SaltSshTasks.addPillarToTop(pillar, false).newTask());
+            }
+            for (String url : pillarUrls) {
+                pillarTasks.add(SaltSshTasks.installSaltPillar(url, false).newTask());
+            }
+            DynamicTasks.queue(pillarTasks.build());
+        }
     }
 
     private void connectSensors() {
@@ -152,7 +181,7 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
         final Set<? extends String> startStates = entity().getConfig(SaltConfig.START_STATES);
         final MutableSet<String> stopStates = addSuffix(startStates, ".stop");
         final ProcessTaskWrapper<Integer> checkStops =
-            queueAndBlock(SaltSshTasks.verifyStates(stopStates, "check stop states", false));
+            queueAndBlock(SaltSshTasks.verifyStates(stopStates, false).summary("check stop states"));
         if (0 != checkStops.getExitCode()) {
             throw new RuntimeException("No stop_states configured and not all start_states have matching stop states");
         } else {
@@ -183,7 +212,7 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
         final Set<? extends String> startStates = entity().getConfig(SaltConfig.START_STATES);
         final MutableSet<String> restartStates = addSuffix(startStates, ".restart");
         final ProcessTaskWrapper<Integer> queued =
-            queueAndBlock(SaltSshTasks.findStates(restartStates, "check restart states", false));
+            queueAndBlock(SaltSshTasks.findStates(restartStates, false).summary("check restart states"));
         final String stdout = queued.getStdout();
         String[] foundStates = Strings.isNonBlank(stdout) ? stdout.split("\\n") : null;
 
@@ -208,8 +237,8 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
         }
     }
 
-    private ProcessTaskWrapper<Integer> queueAndBlock(SshEffectorTasks.SshEffectorTaskFactory<Integer> checkStops) {
-        final ProcessTaskWrapper<Integer> queued = DynamicTasks.queue(checkStops);
+    private ProcessTaskWrapper<Integer> queueAndBlock(ProcessTaskFactory<Integer> taskFactory) {
+        final ProcessTaskWrapper<Integer> queued = DynamicTasks.queue(taskFactory);
         queued.asTask().blockUntilEnded();
         return queued;
     }

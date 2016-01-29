@@ -18,15 +18,13 @@
  */
 package org.apache.brooklyn.cm.salt;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.annotations.Beta;
 import com.google.common.collect.ImmutableSet;
 import org.apache.brooklyn.config.ConfigKey;
 import org.apache.brooklyn.core.config.ConfigKeys;
 import org.apache.brooklyn.core.config.MapConfigKey;
 import org.apache.brooklyn.core.config.SetConfigKey;
 import org.apache.brooklyn.util.core.flags.SetFromFlag;
-
-import com.google.common.annotations.Beta;
 
 /**
  * {@link ConfigKey}s used to configure Salt entities.
@@ -49,9 +47,17 @@ public interface SaltConfig {
     ConfigKey<SaltMode> SALT_MODE = ConfigKeys.newConfigKey(SaltMode.class, "brooklyn.salt.mode",
             "SaltStack execution mode (master/minion/masterless)", SaltMode.MASTERLESS);
 
+    @SetFromFlag("pillars")
+    SetConfigKey<String> SALT_PILLARS = new SetConfigKey<>(String.class, "brooklyn.salt.pillars",
+            "List of Salt Pillar identifiers for top.sls", ImmutableSet.<String>of());
+
+    @SetFromFlag("pillarUrls")
+    SetConfigKey<String> SALT_PILLAR_URLS = new SetConfigKey<>(String.class, "brooklyn.salt.pillarUrls",
+            "List of Salt Pillar archive URLs", ImmutableSet.<String>of());
+
     @SetFromFlag("formulas")
     SetConfigKey<String> SALT_FORMULAS = new SetConfigKey<>(String.class, "brooklyn.salt.formulaUrls",
-            "Map of Salt formula URLs", ImmutableSet.<String>of());
+            "List of Salt formula URLs", ImmutableSet.<String>of());
 
     @SetFromFlag("start_states")
     SetConfigKey<String> START_STATES = new SetConfigKey<>(String.class, "brooklyn.salt.start.states",
