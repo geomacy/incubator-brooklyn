@@ -106,13 +106,14 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
     }
 
     private void startSalt() {
-        final ProcessTaskWrapper<Integer> topStates = queueAndBlock(SaltSshTasks.applyTopStates(false));
+        String name = "apply top states";
+        final ProcessTaskWrapper<Integer> topStates = queueAndBlock(SaltSshTasks.applyTopStates(false).summary(name));
 
         // Salt apply returns exit code 0 even upon failure so check the stderr.
         if (Strings.isNonBlank(topStates.getStderr())) {
-            final String error = Strings.getFirstLine(topStates.getStderr());
             LOG.warn("Encountered error in applying Salt top states: {}", topStates.getStderr());
-            throw new RuntimeException(error);
+            throw new RuntimeException(
+                "Encountered error in applying Salt top states, see '" + name + "' in activities for details");
         }
     }
 
@@ -172,9 +173,8 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
 
     private void applyStates(Set<? extends String> states) {
         for (String state : states) {
-            DynamicTasks.queue(SaltSshTasks.applyState(state, false));
+            DynamicTasks.queue(SaltSshTasks.applyState(state, false).summary("apply state " + state));
         }
-
     }
 
     private void stopBasedOnStartStates() {

@@ -159,24 +159,22 @@ public class SaltSshTasks {
             .add(sudo("mv /tmp/top.sls /srv/salt"))
             .build();
         return ssh(commands).summary("create top.sls file");
-
     }
 
     public static ProcessTaskFactory<Integer> applyTopStates(boolean force) {
-        return  ssh(sudo("salt-call --local state.apply")).summary("apply top states");
-    }
-    public static ProcessTaskWrapper<Integer> applyState(String state, boolean force) {
-        final String commandName = "state.apply " + state;
-        return ssh(sudo("salt-call --local " + commandName)).summary(commandName).newTask();
+        return  saltCall("state.apply");
     }
 
-    public static ProcessTaskWrapper<Integer> saltCall(String command) {
-        return ssh(sudo("salt-call --local " + command)).summary(command).allowingNonZeroExitCode().newTask();
+    public static SshEffectorTaskFactory<Integer> applyState(String state, boolean force) {
+        return saltCall("state.apply " + state);
     }
 
+    public static SshEffectorTaskFactory<Integer> saltCall(String command) {
+        return ssh(sudo("salt-call --local " + command)).allowingNonZeroExitCode();
+    }
 
     public static ProcessTaskWrapper<String> retrieveHighstate() {
-        return ssh(sudo("salt-call --local state.show_highstate --out=yaml"))
+        return saltCall("state.show_highstate --out=yaml")
             .summary("retrieve highstate")
             .requiringZeroAndReturningStdout()
             .newTask();
