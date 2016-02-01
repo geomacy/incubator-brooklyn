@@ -77,12 +77,28 @@ public class SaltHighstate {
 
     @SuppressWarnings("unchecked")
     private static void applyStateSensor(String id, Object stateData, Entity entity) {
+        if (isSaltInternal(id)) {
+            return;
+        }
         addStateSensor(id, entity);
-        Map<String, List<Object>> stateInfo = (Map<String, List<Object>>)stateData;
-        for (String stateModule : stateInfo.keySet()) {
-            if (isSaltInternal(stateModule)) {
-                continue;
+        try {
+            Map<String, List<Object>> stateInfo = (Map<String, List<Object>>)stateData;
+            for (String stateModule : stateInfo.keySet()) {
+                addStateModuleValue(id, entity, stateInfo, stateModule);
             }
+        } catch (ClassCastException e) {
+            LOG.info("Unexpected structure for {} state, skipping ({})", id, e.getMessage());
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void addStateModuleValue(String id, Entity entity, Map<String, List<Object>> stateInfo,
+        String stateModule) {
+
+        if (isSaltInternal(stateModule)) {
+            return;
+        }
+        try {
             final List<Object> stateEntries = stateInfo.get(stateModule);
             String stateFunction = "";
             Map<String, Object> moduleSettings = MutableMap.of();
@@ -100,6 +116,8 @@ public class SaltHighstate {
             entity.sensors().set(newSensor, moduleSettings);
 
             LOG.debug("Sensor set for: {}", moduleSettings);
+        } catch (ClassCastException e) {
+            LOG.info("Unexpected structure for state module {}, skipping ({})", id + "." + stateModule, e.getMessage());
         }
     }
 

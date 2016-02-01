@@ -46,7 +46,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
+import static java.util.regex.Pattern.DOTALL;
+import static java.util.regex.Pattern.MULTILINE;
 import static org.apache.brooklyn.entity.software.base.SoftwareProcess.StopSoftwareParameters.StopMode.ALWAYS;
 import static org.apache.brooklyn.entity.software.base.SoftwareProcess.StopSoftwareParameters.StopMode.NEVER;
 
@@ -105,13 +109,18 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
         connectSensors();
     }
 
+
+    private static final Pattern FAILURES = Pattern.compile(".*^Failed:\\s+(\\d+)$.*", MULTILINE | DOTALL);
+    private static final String ZERO = "0";
+
     private void startSalt() {
         String name = "apply top states";
         final ProcessTaskWrapper<Integer> topStates = queueAndBlock(SaltSshTasks.applyTopStates(false).summary(name));
 
         // Salt apply returns exit code 0 even upon failure so check the stderr.
-        if (Strings.isNonBlank(topStates.getStderr())) {
-            LOG.warn("Encountered error in applying Salt top states: {}", topStates.getStderr());
+        final Matcher failCount = FAILURES.matcher(topStates.getStdout());
+        if (!failCount.matches() || !ZERO.equals(failCount.group(1))) {
+            LOG.warn("Encountered error in applying Salt top states: {}", topStates.getStdout());
             throw new RuntimeException(
                 "Encountered error in applying Salt top states, see '" + name + "' in activities for details");
         }
