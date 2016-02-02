@@ -121,7 +121,7 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
         String name = "apply top states";
         final ProcessTaskWrapper<Integer> topStates = queueAndBlock(SaltSshTasks.applyTopStates(false).summary(name));
 
-        // Salt apply returns exit code 0 even upon failure so check the stderr.
+        // Salt apply returns exit code 0 even upon failure so check the stdout.
         final Matcher failCount = FAILURES.matcher(topStates.getStdout());
         if (!failCount.matches() || !ZERO.equals(failCount.group(1))) {
             LOG.warn("Encountered error in applying Salt top states: {}", topStates.getStdout());
