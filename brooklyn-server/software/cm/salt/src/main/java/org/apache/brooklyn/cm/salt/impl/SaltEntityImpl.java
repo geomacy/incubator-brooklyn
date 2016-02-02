@@ -42,6 +42,11 @@ public class SaltEntityImpl extends EffectorStartableImpl implements SaltEntity 
         super.init();
 
         final Set<? extends String> runList = getConfig(SaltConfig.START_STATES);
+        if (0 == runList.size()) {
+            throw new IllegalArgumentException("Must have configuration values for 'start_states' ("
+                + SaltConfig.START_STATES + ")");
+        }
+
         LOG.debug("Run list size is {}", runList.size());
         for (String state : runList) {
             LOG.debug("Runlist state: {} ", state);

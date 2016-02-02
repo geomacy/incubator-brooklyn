@@ -49,6 +49,10 @@ function init_pillar_config () {
     init_pillar_top
 }
 
+function set_minion_id () {
+    sed "s/^#id:/id: $1/" /etc/salt/minion > /tmp/minion
+    mv /tmp/minion /etc/salt/minion
+}
 
 function salt_installed () {
     [ -f install_salt.sh ]

@@ -49,6 +49,11 @@
       <artifactId>brooklyn-software-database</artifactId>
       <version>${project.version}</version>
     </dependency>
+    <dependency>
+         <groupId>org.apache.brooklyn</groupId>
+         <artifactId>brooklyn-camp</artifactId>
+        <version>${project.version}</version>
+    </dependency>
 
     <dependency>
       <groupId>org.apache.brooklyn</groupId>

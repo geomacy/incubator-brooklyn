@@ -26,6 +26,7 @@ import org.apache.brooklyn.api.effector.Effector;
 import org.apache.brooklyn.api.entity.Entity;
 import org.apache.brooklyn.api.location.MachineLocation;
 import org.apache.brooklyn.api.mgmt.TaskAdaptable;
+import org.apache.brooklyn.camp.brooklyn.BrooklynCampConstants;
 import org.apache.brooklyn.cm.salt.SaltConfig;
 import org.apache.brooklyn.core.effector.Effectors;
 import org.apache.brooklyn.core.entity.Entities;
@@ -85,7 +86,7 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
         final Set<? extends String> formulas = entity().getConfig(SaltConfig.SALT_FORMULAS);
         final Set<? extends String> pillars = entity().getConfig(SaltConfig.SALT_PILLARS);
         final Set<? extends String> pillarUrls = entity().getConfig(SaltConfig.SALT_PILLAR_URLS);
-
+        final String entityId = entity().getConfig(BrooklynCampConstants.PLAN_ID);
 
         final ProcessTaskWrapper<Integer> installedAlready = queueAndBlock(SaltSshTasks.isSaltInstalled(false));
 
@@ -98,6 +99,9 @@ public class SaltLifecycleEffectorTasks extends MachineLifecycleEffectorTasks im
                         SaltSshTasks.configureForMasterlessOperation(false),
                         SaltSshTasks.installTopFile(startStates, false));
 
+                    if (Strings.isNonBlank(entityId)) {
+                        DynamicTasks.queue(SaltSshTasks.setMinionId(entityId));
+                    }
                     installFormulas(formulas);
                     installPillars(pillars, pillarUrls);
                 }

@@ -229,4 +229,8 @@ public class SaltSshTasks {
         builder.addAll(lines);
         return ssh(Strings.join(builder.build(), "\n"));
     }
+
+    public static SshEffectorTaskFactory<Integer> setMinionId(final String entityId) {
+        return invokeSaltUtility("set_minion_id", entityId, true);
+    }
 }
