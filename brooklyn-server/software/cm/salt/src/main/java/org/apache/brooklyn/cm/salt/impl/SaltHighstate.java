@@ -46,7 +46,6 @@ public class SaltHighstate {
 
     private SaltHighstate() {}
 
-    // TODO handle CastClassException gracefully
     public static void applyHighstate(String contents, Entity entity) {
 
         final String adaptedYaml = adaptForSaltYamlTypes(contents);

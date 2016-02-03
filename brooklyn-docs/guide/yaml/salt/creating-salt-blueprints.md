@@ -97,7 +97,7 @@ configuration data.  For example:
 This blueprint contains the MySQL database, and includes a formula available from "myhost" which includes the schema
 information for the DB. The MySQL formula from Saltstack has extensive configurability through Salt Pillars. In the 
 blueprint above, Brooklyn is instructed to apply the pillars defined in the `pillars` configuration key.  (This will 
-add these values to the Salt Pillars `top.sls` file.  The pillar data must be downloaded, and the `pillarUrls` key
+add these values to the Salt Pillars `top.sls` file.)  The pillar data must be downloaded; for this, the `pillarUrls` key
 provides the address of an archive containing the Pillar data.  The contents of the archive will be extracted and put
 in the `/srv/pillar` directory on the minion, in order to be available to Salt when applying the pillar. For example,
 the archive above can simply have the structure
@@ -114,7 +114,7 @@ The init.sls contains the pillar configuration values, such as
     database:
       - orders
     schema:
-      classicmodels:
+      orders:
         load: True
         source: salt://mysql/files/orders.schema
 
@@ -135,9 +135,28 @@ data based on minion id.
 
 ### Highstate Sensors
 
-TBD
+The Salt entity exposes the Salt "highstate" on the node via Brooklyn sensors.  Firstly a single sensor `salt.states` 
+contains a list of all the top level Salt state ID declarations in the highstate.  For example, for the mysql case 
+above, this might look like:
+
+    ["mysql_additional_config", "mysql_config", "mysql_db_0", "mysql_db_0_load", "mysql_db_0_schema", "mysql_debconf",
+     "mysql_debconf_utils", "mysql_python", "mysql_user_frank_localhost", "mysql_user_frank_localhost_0", 
+     "mysql_user_nopassuser_localhost", "mysqld"]
+
+Then, for each ID and each Salt state function in that ID, a Brooklyn sensor is created, containing a map of the data
+from the highstate.  For example, the `salt.state.mysqld.service.running` sensor would have a value like:
+
+
+    {"name":"mysql", "enable":true, "watch":[{"pkg":"mysqld"}, {"file":"mysql_config"}], "order":10005}
+
+
 
 ### saltCall Effector
 
-TBD
+The Salt entity includes a general purpose Salt effector, `saltCall`, which permits execution of Salt commands via
+`salt-call --local`.  It contains a single parameter, `spec`, which specifies the command to invoke.  For example, 
+invoking the effector with a `spec` value of `network.interfaces --out=yaml` would return a YAML formatted map of the 
+network interfaces on the minion.
+
+
 
