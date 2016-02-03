@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 import org.apache.brooklyn.api.mgmt.HasTaskChildren;
 import org.apache.brooklyn.api.mgmt.Task;
@@ -39,7 +38,6 @@ import org.apache.brooklyn.util.collections.MutableSet;
 import org.apache.brooklyn.util.core.task.TaskInternal.TaskCancellationMode;
 import org.apache.brooklyn.util.exceptions.Exceptions;
 import org.apache.brooklyn.util.math.MathPredicates;
-import org.apache.brooklyn.util.time.CountdownTimer;
 import org.apache.brooklyn.util.time.Duration;
 import org.apache.brooklyn.util.time.Time;
 import org.slf4j.Logger;
@@ -64,7 +62,7 @@ public class DynamicSequentialTaskTest {
     private static final Logger log = LoggerFactory.getLogger(DynamicSequentialTaskTest.class);
     
     public static final Duration TIMEOUT = Duration.TEN_SECONDS;
-    public static final Duration TINY_TIME = Duration.millis(20);
+    public static final Duration TINY_TIME = Duration.millis(1);
     
     BasicExecutionManager em;
     BasicExecutionContext ec;
@@ -88,7 +86,11 @@ public class DynamicSequentialTaskTest {
     
     @AfterMethod(alwaysRun=true)
     public void tearDown() throws Exception {
-        if (em != null) em.shutdownNow();
+        if (em != null) {
+            // need to await termination, otherwise interrupted-but-still-running threads 
+            // may update the cancellations/messages and interfere with subsequent tests
+            Assert.assertTrue(em.shutdownNow(Duration.FIVE_SECONDS));
+        }
     }
 
     @Test
@@ -139,6 +141,7 @@ public class DynamicSequentialTaskTest {
                         Thread.sleep(duration.toMillisecondsRoundingUp());
                     }
                 } catch (InterruptedException e) {
+                    log.info("releasing semaphore on interruption after saying "+message);
                     cancellations.release();
                     throw Exceptions.propagate(e);
                 }
@@ -159,7 +162,8 @@ public class DynamicSequentialTaskTest {
     }
     
     public Task<String> sayTask(String message, Duration duration, String message2) {
-        return Tasks.<String>builder().displayName("say:"+message).body(sayCallable(message, duration, message2)).build();
+        return Tasks.<String>builder().displayName("say:"+message+(duration!=null ? ":wait("+duration+")" : "")+(message2!=null ? ":"+message2 : ""))
+            .body(sayCallable(message, duration, message2)).build();
     }
     
     public <T> Task<T> submitting(final Task<T> task) {
@@ -193,38 +197,59 @@ public class DynamicSequentialTaskTest {
                 sayTask("2a", Duration.THIRTY_SECONDS, "2b"),
                 sayTask("3"));
         ec.submit(t);
-        
+
+        // wait for 2 to start, saying "2a", and the first interruptible block is when it waits for its 30s
         waitForMessages(Predicates.compose(MathPredicates.greaterThanOrEqual(2), CollectionFunctionals.sizeFunction()), TIMEOUT);
         Assert.assertEquals(messages, Arrays.asList("1", "2a"));
-        Time.sleep(Duration.millis(50));
+        
+        // now cancel, and make sure we get the right behaviour
         t.cancel(true);
         Assert.assertTrue(t.isDone());
-        // 2 should get cancelled, and invoke the cancellation semaphore
+        // 2 should get cancelled, and invoke the cancellation semaphore, but not say 2b
         // 3 should get cancelled and not run at all
-        Assert.assertEquals(messages, Arrays.asList("1", "2a"));
         
-        // Need to ensure that 2 has been started; race where we might cancel it before its run method
-        // is even begun. Hence doing "2a; pause; 2b" where nothing is interruptable before pause.
+        // cancel(..) currently cancels everything in the tree in the calling thread
+        // so we could even assert task3.isCancelled() now
+        // but not sure we will guarantee that for subtasks, so weaker assertion
+        // that it is eventually cancelled, and that it for sure never starts
+        
+        // message list is still 1, 2a
+        Assert.assertEquals(messages, Arrays.asList("1", "2a"));
+        // And 2 when cancelled should release the semaphore
+        log.info("testCancelled waiting on semaphore; permits left is "+cancellations.availablePermits());
         Assert.assertTrue(cancellations.tryAcquire(10, TimeUnit.SECONDS));
+        log.info("testCancelled acquired semaphore; permits left is "+cancellations.availablePermits());
         
         Iterator<Task<?>> ci = ((HasTaskChildren)t).getChildren().iterator();
+        // 1 completed fine
         Assert.assertEquals(ci.next().get(), "1");
+        // 2 is cancelled -- cancelled flag should always be set *before* the interrupt sent
+        // (and that released the semaphore above, even if thread is not completed, so this should be set)
         Task<?> task2 = ci.next();
         Assert.assertTrue(task2.isBegun());
         Assert.assertTrue(task2.isDone());
         Assert.assertTrue(task2.isCancelled());
-        
+
         Task<?> task3 = ci.next();
+        // 3 is being cancelled in the thread which cancelled 2, and should either be
+        // *before* 2 was cancelled or *not run* because the parent was cancelled 
+        // so we shouldn't need to wait ... but if we did:
+//        Asserts.eventually(Suppliers.ofInstance(task3), TaskPredicates.isDone());
+        Assert.assertTrue(task3.isDone());
+        Assert.assertTrue(task3.isCancelled());
         Assert.assertFalse(task3.isBegun());
-        Assert.assertTrue(task2.isDone());
-        Assert.assertTrue(task2.isCancelled());
-        
-        // but we do _not_ get a mutex from task3 as it does not run (is not interrupted)
+        // messages unchanged
+        Assert.assertEquals(messages, Arrays.asList("1", "2a"));
+        // no further mutexes should be available (ie 3 should not run)
+        // TODO for some reason this was observed to fail on the jenkins box (2016-01)
+        // but i can't see why; have added logging in case it happens again
         Assert.assertEquals(cancellations.availablePermits(), 0);
     }
     
     @Test
     public void testCancellationModeAndSubmitted() throws Exception {
+        // seems actually to be the logging which causes this to take ~50ms ?
+        
         doTestCancellationModeAndSubmitted(true, TaskCancellationMode.DO_NOT_INTERRUPT, false, false);
         
         doTestCancellationModeAndSubmitted(true, TaskCancellationMode.INTERRUPT_TASK_AND_ALL_SUBMITTED_TASKS, true, true);
@@ -296,27 +321,14 @@ public class DynamicSequentialTaskTest {
                 @Override public Number get() { return t1.getEndTimeUtc(); }}, 
                 MathPredicates.<Number>greaterThanOrEqual(0));
         } else {
-            Time.sleep(Duration.millis(5));
+            Time.sleep(TINY_TIME);
             Assert.assertFalse(t1.isCancelled());
             Assert.assertFalse(t1.isDone());
         }
     }
 
     protected void waitForMessages(Predicate<? super List<String>> predicate, Duration timeout) throws Exception {
-        long endtime = System.currentTimeMillis() + timeout.toMilliseconds();
-        synchronized (messages) {
-            while (true) {
-                if (predicate.apply(messages)) {
-                    return;
-                }
-                long waittime = endtime - System.currentTimeMillis();
-                if (waittime > 0) {
-                    messages.wait(waittime);
-                } else {
-                    throw new TimeoutException("Timeout after "+timeout+"; messages="+messages+"; predicate="+predicate);
-                }
-            }
-        }
+        Asserts.eventuallyOnNotify(messages, predicate, timeout);
     }
     
     protected Task<String> monitorableTask(final String id) {
@@ -352,14 +364,7 @@ public class DynamicSequentialTaskTest {
         monitorableJobSemaphoreMap.get(id).release();
     }
     protected void waitForMessage(final String id) {
-        CountdownTimer timer = CountdownTimer.newInstanceStarted(TIMEOUT);
-        synchronized (messages) {
-            while (!timer.isExpired()) {
-                if (messages.contains(id)) return;
-                timer.waitOnForExpiryUnchecked(messages);
-            }
-        }
-        Assert.fail("Did not see message "+id);
+        Asserts.eventuallyOnNotify(messages, CollectionFunctionals.contains(id), TIMEOUT);
     }
     protected void releaseAndWaitForMonitorableJob(final String id) {
         releaseMonitorableJob(id);

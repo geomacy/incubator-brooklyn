@@ -59,6 +59,8 @@ import org.apache.brooklyn.util.exceptions.Exceptions;
 import org.apache.brooklyn.util.exceptions.RuntimeInterruptedException;
 import org.apache.brooklyn.util.text.Identifiers;
 import org.apache.brooklyn.util.text.Strings;
+import org.apache.brooklyn.util.time.CountdownTimer;
+import org.apache.brooklyn.util.time.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -67,7 +69,6 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.CaseFormat;
 import com.google.common.base.Function;
 import com.google.common.base.Preconditions;
-import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.ExecutionList;
@@ -166,8 +167,26 @@ public class BasicExecutionManager implements ExecutionManager {
     }
     
     public void shutdownNow() {
+        shutdownNow(null);
+    }
+    
+    /** shuts down the executor, and if a duration is supplied awaits termination for that long.
+     * @return whether everything is terminated
+     */
+    @Beta
+    public boolean shutdownNow(Duration howLongToWaitForTermination) {
         runner.shutdownNow();
         delayedRunner.shutdownNow();
+        if (howLongToWaitForTermination!=null) {
+            CountdownTimer timer = howLongToWaitForTermination.countdownTimer();
+            try {
+                runner.awaitTermination(timer.getDurationRemaining().toMilliseconds(), TimeUnit.MILLISECONDS);
+                if (timer.isLive()) delayedRunner.awaitTermination(timer.getDurationRemaining().toMilliseconds(), TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                throw Exceptions.propagate(e);
+            }
+        }
+        return runner.isTerminated() && delayedRunner.isTerminated();
     }
     
     public void addListener(ExecutionListener listener) {
@@ -565,7 +584,15 @@ public class BasicExecutionManager implements ExecutionManager {
                 int subtasksReallyCancelled=0;
                 
                 if (task instanceof HasTaskChildren) {
-                    for (Task<?> child: ((HasTaskChildren)task).getChildren()) {
+                    // cancel tasks in reverse order --
+                    // it should be the case that if child1 is cancelled,
+                    // a parentTask should NOT call a subsequent child2,
+                    // but just in case, we cancel child2 first
+                    // NB: DST and others may apply their own recursive cancel behaviour
+                    MutableList<Task<?>> childrenReversed = MutableList.copyOf( ((HasTaskChildren)task).getChildren() );
+                    Collections.reverse(childrenReversed);
+                    
+                    for (Task<?> child: childrenReversed) {
                         if (log.isTraceEnabled()) {
                             log.trace("Cancelling "+child+" on recursive cancellation of "+task);
                         }
