@@ -18,6 +18,7 @@
  */
 package org.apache.brooklyn.cm.salt;
 
+import com.google.common.collect.ImmutableSet;
 import org.apache.brooklyn.api.entity.EntitySpec;
 import org.apache.brooklyn.cm.salt.impl.SaltHighstate;
 import org.apache.brooklyn.core.entity.Entities;
@@ -58,7 +59,8 @@ public class HighstateTest {
     public void shouldSetSensorsOnEntity() throws Exception {
         String contents = getTestYaml();
         TestApplication app = TestApplication.Factory.newManagedInstanceForTests();
-        entity = app.createAndManageChild(EntitySpec.create(SaltEntity.class));
+        entity = app.createAndManageChild(EntitySpec.create(SaltEntity.class)
+                .configure(SaltEntity.START_STATES, ImmutableSet.of("apache")));
 
         SaltHighstate.applyHighstate(contents, entity);
 
